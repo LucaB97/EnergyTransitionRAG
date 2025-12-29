@@ -1,5 +1,7 @@
 import numpy as np
 import faiss
+from collections import defaultdict
+
 
 class SemanticRetriever:
     """
@@ -33,7 +35,7 @@ class SemanticRetriever:
         """
 
         query_vec = self.embedding_fn(query).astype("float32")
-        query_vec = np.array([query_vec])
+        # query_vec = np.array([query_vec])
         faiss.normalize_L2(query_vec)
 
         scores, indices = self.index.search(query_vec, top_k)
@@ -41,26 +43,62 @@ class SemanticRetriever:
         return [self.chunks[i] for i in indices[0]]
     
 
-    def display(self, results, max_chars=500, deduplicate=True):
+    def display(self, results, max_chars=300):
         """
-        Display retrieved chunks in a human-readable format with citations.
+        Display retrieved chunks grouped by source paper, highlighting how many
+        relevant passages were found per paper.
 
-        Optionally removes duplicate papers for clarity, while leaving
-        the original retrieval results unchanged.
+        This method improves interpretability of retrieval results by:
+        - Grouping multiple retrieved chunks originating from the same paper
+        - Displaying each paper only once in the main index
+        - Explicitly indicating how many relevant passages were retrieved per paper
+        - Printing the content of each relevant passage separately
 
         Args:
-            results (list[dict]): Retrieved chunks.
-            max_chars (int): Maximum number of characters to display per chunk.
-            deduplicate (bool): Whether to display only one chunk per paper.
+            results (list[dict]): List of retrieved chunks, where each chunk
+                contains at least the following fields:
+                - paper_id (str)
+                - authors (str)
+                - title (str)
+                - year (int)
+                - text (str)
+            max_chars (int, optional): Maximum number of characters to display
+                for each passage. Longer passages are truncated for readability.
+
+        Output format:
+            [1] Paper Title (Year) — N relevant passages
+            └ Passage 1:
+                <text snippet>
+
+            └ Passage 2:
+                <text snippet>
+
+        Notes:
+            This representation aligns with the retrieval logic used for synthesis,
+            making it explicit when multiple passages from the same source contribute
+            to the final answer. It also avoids misleading index jumps that can occur
+            when deduplication is applied without grouping.
         """
+        
+        papers = defaultdict(list)
 
-        seen = set()
+        # Group chunks by paper
+        for r in results:
+            papers[r["paper_id"]].append(r)
 
-        for i, r in enumerate(results, 1):
-            if deduplicate and r["paper_id"] in seen:
-                continue
+        display_idx = 1
 
-            seen.add(r["paper_id"])
+        for paper_id, chunks in papers.items():
+            authors = chunks[0]["authors"]
+            title = chunks[0]["title"]
+            year = chunks[0]["year"]
+            n_chunks = len(chunks)
 
-            print(f"\n[{i}] {r['title']} ({r['year']})")
-            print(r["text"][:max_chars] + ("..." if len(r["text"]) > max_chars else ""))
+            print(f"\n[{display_idx}] {authors} ({year}) — {title}\n  ({n_chunks} relevant passage{'s' if n_chunks > 1 else ''})")
+
+            for i, c in enumerate(chunks, 1):
+                print(f"  └ Passage {i}:")
+                print("   ", c["text"][:max_chars] + ("..." if len(c["text"]) > max_chars else ""))
+                print()
+
+            display_idx += 1

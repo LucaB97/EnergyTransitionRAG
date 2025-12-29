@@ -24,8 +24,11 @@ query = "How are local communities affected by large renewable energy projects?"
 
 print("\n" + "="*80)
 print("QUERY:", query)
+print("Searching...")
 results = retriever.search(query, top_k=5)
+print("Displaying results...")
 retriever.display(results)
+print("Synthesizing...")
 answer = synthesizer.synthesize(query, results)
 print("\n" + answer)
 

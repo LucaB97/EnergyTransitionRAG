@@ -43,15 +43,13 @@ pip install -r requirements.txt
 - Split text into chunks.
 - Save chunks in JSON format with metadata: chunk ID, paper ID, title, year.
 
-### Phase 2: Semantic Retrieval
-• Embed chunks into vector representations:
+### Phase 2: Embeddings & Indexing
 `python -m scripts.phase2___build_index`
 
-• Perform semantic search on user queries to retrieve relevant passages:
-`python -m scripts.phase2___evaluate_retrieval`
-
-### Phase 3: LLM-Based Summarization (RAG)
-- Use a language model to synthesize retrieved passages into structured answers with citations.
+### Phase 3: Semantic Retrieval & LLM-Based Summarization (RAG)
+`python -m scripts.test___retrieval_and_synthesis`
+• Perform semantic search on user queries to retrieve relevant passages.
+• Use a language model to synthesize retrieved passages into structured answers with citations.
 
 ### Phase 4: API & Minimal Deployment
 - Expose the system via a simple API for querying and returning structured responses.

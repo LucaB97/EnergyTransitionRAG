@@ -3,23 +3,28 @@ import numpy as np
 
 _model_cache = {}
 
-def hf_embedding(text, model_name="all-MiniLM-L6-v2"):
+def hf_embedding(texts, model_name="all-MiniLM-L6-v2"):
     """
-        Generate a semantic embedding for a given text using a Hugging Face
-        SentenceTransformer model.
+    Generate embeddings for one or more texts using a SentenceTransformer model.
 
-        The model is loaded once and cached in memory to avoid repeated
-        initialization during multiple calls.
+    Args:
+        texts (str | list[str]): Input text(s) to embed.
+        model_name (str): Name of the SentenceTransformer model.
 
-        Args:
-            text (str): Input text to embed.
-            model_name (str): Name of the SentenceTransformer model.
+    Returns:
+        np.ndarray: 2D NumPy array of shape (n_texts, embedding_dim)
+    """
 
-        Returns:
-            np.ndarray: A 1D NumPy array representing the text embedding.
-        """
     from sentence_transformers import SentenceTransformer
-    
+
     if model_name not in _model_cache:
         _model_cache[model_name] = SentenceTransformer(model_name)
-    return _model_cache[model_name].encode(text, convert_to_numpy=True)
+
+    if isinstance(texts, str):
+        texts = [texts]
+
+    return _model_cache[model_name].encode(
+        texts,
+        convert_to_numpy=True,
+        show_progress_bar=True
+    )
