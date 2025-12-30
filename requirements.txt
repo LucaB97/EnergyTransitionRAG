@@ -11,3 +11,8 @@ tqdm>=4.60
 
 # Phase 3: Synthesis
 
+# Phase 4: FastAPI 
+fastapi>=0.124.4
+pydantic>=2.10.6
+typing>=3.7.4.3
+
