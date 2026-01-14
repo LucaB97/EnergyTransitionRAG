@@ -9,10 +9,10 @@ class QueryRequest(BaseModel):
         example="What are the economic impacts of replacing fossil fuels with wind energy?"
     )
     top_k: int = Field(
-        5,
+        default=15,
         ge=1,
-        le=20,
-        description="Number of relevant text chunks retrieved for synthesis"
+        le=50,
+        description="Number of chunks to retrieve for synthesis"
     )
 
 

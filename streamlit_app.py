@@ -27,6 +27,7 @@ except:
 # App header
 # ---------------------------------------------------------------------
 st.title("🌱 Environmental Research Synthesizer")
+# st.subtitle("🌱 Environmental Research Synthesizer")
 st.markdown(
     "Ask an evidence-based research question. "
     "Answers are synthesized **only** from the underlying academic sources."
@@ -38,6 +39,14 @@ st.markdown(
 question = st.text_area(
     "Research question",
     placeholder="e.g. What are the social impacts of wind energy adoption?",
+)
+
+top_k = st.slider(
+    "Chunks to retrieve",
+    min_value=5,
+    max_value=30,
+    value=15,
+    step=5
 )
 
 ask_button = st.button("Ask")
@@ -53,7 +62,8 @@ if ask_button:
             try:
                 response = requests.post(
                     API_URL,
-                    json={"question": question},
+                    json={"question": question,
+                          "top_k": top_k},
                     timeout=60,
                 )
                 response.raise_for_status()
@@ -135,37 +145,71 @@ if show_debug and "debug" in data:
     st.subheader("🧪 Debug: Evidence Trace")
 
     debug = data["debug"]
+    chunks = debug["chunks"]
+    papers = debug["papers"]
+    metrics = debug["metrics"]
 
-    col1, col2 = st.columns(2)
+    # -----------------------------------------------------------------
+    # Evidence trace (grouped by paper)
+    # -----------------------------------------------------------------
+    for paper in papers:
+        paper_id = paper["paper_id"]
+        paper_chunks = [
+            c for c in chunks if c["paper_id"] == paper_id
+        ]
 
-    # Retrieved chunks
-    with col1:
-        st.markdown("### 🔎 Retrieved Chunks")
-        for c in debug["retrieved_chunks"]:
-            st.code(
-                f"{c['chunk_id']}\n"
-                f"{c['title']} ({c['year']})\n\n"
-                f"{c['text'][:300]}..."
-            )
+        used_chunks = [c for c in paper_chunks if c["used_in_synthesis"]]
 
-    # Used chunks + metrics
-    with col2:
-        st.markdown("### ✅ Used in Synthesis")
+        # Paper header
+        # st.markdown(
+        #     f"**📄 {paper['title']} ({paper['year']})**\n"
+        #     f"*{paper['authors']}*  \n"
+        #     f"Used chunks: **{paper['chunks_used']} / {paper['chunks_retrieved']}*"
+        # )
 
-        used_ids = {c["chunk_id"] for c in debug["used_chunks"]}
+        st.markdown(f"**📄 {paper['title']} ({paper['year']})**")
+        st.caption(
+            f"{paper['authors']} · "
+            f"Used {paper['chunks_used']} / {paper['chunks_retrieved']} chunks"
+        )
 
-        for c in debug["retrieved_chunks"]:
-            if c["chunk_id"] in used_ids:
-                st.code(
-                    f"{c['chunk_id']}\n"
-                    f"{c['title']} ({c['year']})\n\n"
-                    f"{c['text'][:300]}..."
+
+        # Chunk list
+        for c in paper_chunks:
+            is_used = c["used_in_synthesis"]
+
+            border_color = "🟢" if is_used else "⚪"
+            opacity = 1.0 if is_used else 0.6
+
+            with st.expander(
+                f"{border_color} {c['chunk_id'].split('__')[-1]} "
+                f"(rank #{c['rank']})",
+                expanded=False
+            ):
+                st.markdown(
+                    f"<div style='opacity:{opacity}'>"
+                    f"{c['text']}"
+                    f"</div>",
+                    unsafe_allow_html=True
                 )
 
-        metrics = debug["retrieval_metrics"]
+    # -----------------------------------------------------------------
+    # Evidence metrics
+    # -----------------------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 📊 Evidence Metrics")
 
-        st.markdown("### 📊 Evidence Metrics")
-        st.metric("Retrieved chunks", metrics["retrieved"])
-        st.metric("Used chunks", metrics["used"])
-        st.metric("Coverage", f"{metrics['coverage']:.0%}")
-        st.metric("Unique papers used", metrics["unique_papers_used"])
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Retrieved chunks", metrics["retrieved_chunks"])
+        st.metric("Used chunks", metrics["used_chunks"])
+        st.metric("Chunk coverage", f"{metrics['chunk_coverage']:.0%}")
+
+    with col2:
+        st.metric("Retrieved papers", metrics["retrieved_papers"])
+        st.metric("Unique papers used", metrics["used_papers"])
+        st.metric("Paper coverage", f"{metrics['paper_coverage']:.0%}")
+
+    with col3:
+        st.metric("Paper dominance", metrics["paper_dominance"])

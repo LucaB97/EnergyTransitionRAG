@@ -63,7 +63,10 @@ def query_endpoint(request: QueryRequest, req: Request):
             answer=[],
             limitations=["No relevant sources were retrieved for this question."],
             sources=[],
-            meta={"chunks_retrieved": 0},
+            meta={
+                "top_k": request.top_k,
+                "chunks_retrieved": 0
+                },
         )
 
     source_lookup = {
@@ -109,18 +112,21 @@ def query_endpoint(request: QueryRequest, req: Request):
         source_lookup
     )
     
-    ## Maintain only unique citations
+    
+    used_chunks_ids = {
+        cid
+        for sentence in synthesis_output["answer"]
+        for cid in sentence.get("citations", [])
+    }
+
+    ## Build list of sources
     if synthesis_output["reason"] == "out_of_scope":
         sources = []
+        used_chunks_ids = set()
     else:
-        used_chunks_ids = {
-            cid
-            for sentence in synthesis_output["answer"]
-            for cid in sentence["citations"]
-        }
         sources = build_sources_from_used_chunks(used_chunks_ids, source_lookup)
 
-    ## Add debug info for retrieved vs used chunks debug panel in UI
+    ## Add debug info for UI
     debug = get_debug_info(retrieved_chunks, used_chunks_ids)
 
     return QueryResponse(
@@ -130,6 +136,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         limitations=synthesis_output["limitations"],
         sources=sources,
         meta={
+            "top_k": request.top_k,
             "chunks_retrieved": len(retrieved_chunks),
             "retrieval_time_sec": round(retrieval_time, 3),
             "synthesis_time_sec": round(synthesis_time, 3),

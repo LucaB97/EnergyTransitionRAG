@@ -34,13 +34,19 @@ class SemanticRetriever:
             list[dict]: Retrieved chunk dictionaries with metadata.
         """
 
-        query_vec = self.embedding_fn(query).astype("float32")
-        # query_vec = np.array([query_vec])
-        faiss.normalize_L2(query_vec)
+        query_embedding = self.embedding_fn(query).astype("float32")
+        faiss.normalize_L2(query_embedding)
 
-        scores, indices = self.index.search(query_vec, top_k)
+        distances, indices = self.index.search(query_embedding, top_k)
 
-        return [self.chunks[i] for i in indices[0]]
+        results = []
+        for rank, (idx, score) in enumerate(zip(indices[0], distances[0]), start=1):
+            chunk = self.chunks[idx].copy()
+            chunk["score"] = float(score)
+            chunk["rank"] = rank
+            results.append(chunk)
+
+        return results
     
 
     def display(self, results, max_chars=300):

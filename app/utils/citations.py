@@ -23,12 +23,14 @@ def format_author_year(authors, year):
 
 def resolve_answer_citations(answer, source_lookup):
     """
-    Replace chunk_id citations with human-readable labels.
+    Replace chunk_id citations with human-readable labels,
+    deduplicated at the paper level.
     """
 
     resolved = []
 
     for sentence in answer:
+        seen = set()
         labels = []
 
         for sid in sentence["citations"]:
@@ -40,7 +42,10 @@ def resolve_answer_citations(answer, source_lookup):
                 source.get("authors"),
                 source.get("year")
             )
-            labels.append(label)
+
+            if label not in seen:
+                labels.append(label)
+                seen.add(label)
 
         resolved.append({
             "text": sentence["text"],
