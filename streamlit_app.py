@@ -89,7 +89,7 @@ if reason == "out_of_scope":
     if data.get("limitations"):
         st.markdown("**Reason:**")
         for lim in data["limitations"]:
-            st.write(f"- {lim}")
+            st.write(f"{lim}")
     st.stop()
 
 elif reason == "insufficient_evidence":
@@ -112,7 +112,7 @@ for item in data.get("answer", []):
 if data.get("limitations"):
     st.subheader("⚠️ Limitations")
     for lim in data["limitations"]:
-        st.write(f"- {lim}")
+        st.write(f"{lim}")
 
 # ---------------------------------------------------------------------
 # Sources (paper-level bibliography)

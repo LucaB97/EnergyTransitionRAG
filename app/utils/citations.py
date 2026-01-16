@@ -1,4 +1,26 @@
 from typing import Set, Dict, List
+import re
+
+
+CITATION_PATTERN = re.compile(r"\([^)]*\d{4}[^)]*\)")
+
+def remove_citations_inside_text(answer):
+    """
+    Remove parenthetical citation-like patterns from text.
+    """
+    cleaned = []
+
+    for sentence in answer:
+        text = sentence['text']
+        text_no_citations = CITATION_PATTERN.sub("", text).strip()
+
+        cleaned.append({
+            "text": text_no_citations,
+            "citations": sentence['citations']
+        })
+
+    return cleaned
+
 
 
 def format_author_year(authors, year):

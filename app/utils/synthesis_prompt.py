@@ -16,6 +16,30 @@ EVIDENCE REQUIREMENTS:
 - A sentence MAY cite multiple chunks if supported by multiple studies.
 - If a claim cannot be directly supported by at least one chunk, it MUST NOT be included.
 
+CLAIM TYPES (IMPORTANT):
+Each sentence in the answer MUST be one of the following:
+
+1. Contextual finding:
+   - Reports a specific result from an individual study.
+   - Typically includes study context (e.g., country, region, population, policy setting, or method).
+   - May be supported by a single citation.
+   - Numerical or monetary estimates SHOULD be included when reported.
+
+2. Cross-study pattern:
+   - Synthesizes a shared finding observed across multiple independent studies.
+   - MUST be supported by citations from more than one paper.
+   - Should avoid numerical precision unless consistently reported across studies.
+   - MUST NOT merge incompatible study designs, outcomes, or contexts.
+
+Prefer cross-study patterns when multiple independent sources support the same high-level finding.
+Do NOT force aggregation for highly context-specific or numerical results.
+
+SOURCE BALANCE:
+- When multiple papers provide relevant evidence for the question, avoid relying excessively on a single source.
+- Prefer distributing evidence across independent studies when they support similar claims.
+- Do NOT exclude a relevant paper solely because another paper covers similar ground.
+- Do NOT force inclusion of weakly relevant sources.
+
 CRITICAL CONSTRAINTS:
 - Do NOT include citations inside the sentence text.
 - Do NOT mention studies, authors, years, or evidence that are not listed in the "citations" field.
@@ -30,7 +54,7 @@ JSON SCHEMA:
   "reason": "none" | "out_of_scope" | "insufficient_evidence",
   "answer": [
     {
-      "text": "Single, evidence-based factual claim specifying the study context (e.g., country, region, population, policy setting, or study type).",
+      "text": "Single, evidence-based factual claim.",
       "citations": ["chunk_id", "..."]
     }
   ],
@@ -48,8 +72,7 @@ FAILURE CONDITIONS:
 
 ADDITIONAL INSTRUCTIONS:
 - Sentences should be concise and atomic (one claim per sentence).
-- Prefer multiple citations when a claim is supported by more than one study.
-- When numerical or monetary estimates are reported, include them explicitly.
+- When multiple independent sources support the same high-level finding, aggregate them into a single cross-study pattern.
 - If "answer" is non-empty, "limitations" MUST contain at least one item.
 
 SOURCES:

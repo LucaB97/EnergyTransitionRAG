@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, HTTPException
 
 from app.dependencies import load_system
 from app.schemas import QueryRequest, QueryResponse, Sentence
-from app.utils.citations import resolve_answer_citations, build_sources_from_used_chunks
+from app.utils.citations import remove_citations_inside_text, resolve_answer_citations, build_sources_from_used_chunks
 from app.utils.heuristics import determine_reason
 from app.utils.debug_info import get_debug_info
 
@@ -111,6 +111,9 @@ def query_endpoint(request: QueryRequest, req: Request):
         synthesis_output["answer"],
         source_lookup
     )
+
+    ## Remove any references included in the synthesis text
+    resolved_answer = remove_citations_inside_text(resolved_answer)
     
     
     used_chunks_ids = {
