@@ -25,4 +25,12 @@ def determine_reason(synthesis_output, chunk_lookup):
     return "none"
 
 
-#def should_retry()
+
+def should_retry(metrics):
+    if (
+        metrics["retrieved_papers"] > 3
+        and metrics["paper_dominance"] > 0.7
+        and metrics["paper_coverage"] < 0.5
+    ):
+        return True
+    return False

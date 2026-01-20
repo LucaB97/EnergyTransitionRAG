@@ -6,9 +6,9 @@ from app.dependencies import load_system
 from app.schemas import QueryRequest, QueryResponse, Sentence
 from app.utils.synthesis_prompt import BASIC_SYNTHESIS_PROMPT, RETRY_SYNTHESIS_PROMPT
 from app.utils.citations import remove_citations_inside_text, resolve_answer_citations, build_source_entry
-from app.utils.heuristics import determine_reason
-from app.utils.evidence_analysis import aggregate_evidence, compute_evidence_metrics, get_debug_info
-
+from app.utils.heuristics import determine_reason, should_retry
+from app.utils.evidence_analysis import aggregate_evidence, extract_sentence_paper_ids, compute_evidence_metrics, get_debug_info
+from app.utils.confidence import compute_confidence
 
 app = FastAPI(
     title="Environmental Research Synthesizer",
@@ -77,63 +77,100 @@ def query_endpoint(request: QueryRequest, req: Request):
         for c in retrieved_chunks
     }
 
+
     #
     # --- Synthesis ---
-    #
-    t1 = time.perf_counter()
+    #    
     
-    try:
-        synthesis_output = synthesizer.synthesize(
-            request.question,
-            retrieved_chunks,
-            BASIC_SYNTHESIS_PROMPT
-        )
-    except ValueError as e:
-        logger.error("Synthesis failed after retries", exc_info=e)
+    max_attempts = 2
+    attempt = 0
+    best_output, best_score = None, -1
+    prompt = BASIC_SYNTHESIS_PROMPT
+    last_error = None
+    
+    t1 = time.perf_counter()
+
+    while attempt < max_attempts:
+        attempt += 1
+        
+        try:
+            synthesis_output = synthesizer.synthesize(
+                request.question,
+                retrieved_chunks,
+                prompt
+            )
+        except ValueError as e:
+            last_error = e
+            logger.error("Synthesis failed after retries", exc_info=e)
+            break  # hard failure → exit loop
+        
+
+        ## Backend reason enforcement
+        synthesis_output["reason"] = determine_reason(synthesis_output, source_lookup)
+
+        if synthesis_output["reason"] == "out_of_scope":
+            break
+
+
+        ## Evidence metrics
+        sentence_papers = extract_sentence_paper_ids(synthesis_output["answer"], source_lookup)
+
+        used_chunks_ids = {
+            cid
+            for sentence in synthesis_output["answer"]
+            for cid in sentence.get("citations", [])
+        }
+
+        aggregation = aggregate_evidence(retrieved_chunks, used_chunks_ids)
+        metrics = compute_evidence_metrics(aggregation, sentence_papers)
+
+        score = compute_confidence(metrics)
+        if score > best_score:
+            best_score = score
+            best_output = synthesis_output
+
+        # --- Retry decision ---
+        if should_retry(metrics) and attempt < max_attempts:
+            logger.info(
+                "Retrying synthesis due to weak evidence metrics",
+                extra={"metrics": metrics}
+            )
+            prompt = RETRY_SYNTHESIS_PROMPT
+            continue
+        else:
+            break  # synthesis accepted
+
+
+    # --- Failure fallback ---
+    if last_error and not synthesis_output:
         return QueryResponse(
             question=request.question,
             reason="generation_failed",
             answer=[],
-            limitations=[],
-            sources=[]
+            limitations=[
+                "The system was unable to generate a stable, well-supported synthesis."
+            ],
+            sources=[],
         )
 
-    
     synthesis_time = time.perf_counter() - t1
     total_time = time.perf_counter() - start_time
 
     #
     # --- Output preparation ---
     #
+
+    ## Use citations in the [Authors, Year] format 
+    resolved_answer = resolve_answer_citations(best_output["answer"], source_lookup)
     
-    ## Backend reason enforcement
-    synthesis_output["reason"] = determine_reason(synthesis_output, source_lookup)
-
-
-    ## Get answer with citations in the [Authors, Year] format 
-    resolved_answer, sentence_citations = resolve_answer_citations(
-        synthesis_output["answer"],
-        source_lookup
-    )
-
-    ## Compute evidence metrics
-    used_chunks_ids = {
-        cid
-        for sentence in synthesis_output["answer"]
-        for cid in sentence.get("citations", [])
-    }
-
-    aggregation = aggregate_evidence(retrieved_chunks, used_chunks_ids)
-    metrics = compute_evidence_metrics(aggregation, sentence_citations)
-
-    ## Remove any references included in the synthesis text
+    ## Remove references from synthesis text
     resolved_answer = remove_citations_inside_text(resolved_answer)
 
     ## Build list of sources
-    if synthesis_output["reason"] == "out_of_scope":
+    if best_output["reason"] == "out_of_scope":
         sources = []
     else:
-        cited_paper_ids = set().union(*sentence_citations)
+        cited_paper_ids = set().union(*sentence_papers)
         sources = [build_source_entry(pid, source_lookup) for pid in cited_paper_ids]
 
     ## Add debug info for UI
@@ -142,9 +179,9 @@ def query_endpoint(request: QueryRequest, req: Request):
 
     return QueryResponse(
         question=request.question,
-        reason=synthesis_output["reason"],
+        reason=best_output["reason"],
         answer=[Sentence(**s) for s in resolved_answer],
-        limitations=synthesis_output["limitations"],
+        limitations=best_output["limitations"],
         sources=sources,
         meta={
             "top_k": request.top_k,
@@ -152,6 +189,11 @@ def query_endpoint(request: QueryRequest, req: Request):
             "retrieval_time_sec": round(retrieval_time, 3),
             "synthesis_time_sec": round(synthesis_time, 3),
             "total_time_sec": round(total_time, 3),
+            "retry": {
+                "attempted": attempt>1,
+                "num_attempts": attempt,
+                "trigger": "low_source_diversity"
+            }
         },
         debug=debug
     )

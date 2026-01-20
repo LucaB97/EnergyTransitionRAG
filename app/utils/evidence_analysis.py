@@ -37,14 +37,35 @@ def aggregate_evidence(retrieved_chunks, used_chunk_ids):
         p["authors"] = c.get("authors")
         p["year"] = c.get("year")
 
-    return {
+    return {    #<--aggregation
         "chunks": chunks,
         "paper_stats": paper_stats,
     }
 
 
 
-def compute_evidence_metrics(aggregation, sentence_citations):
+def extract_sentence_paper_ids(answer, source_lookup):
+    """
+    Build sentence → paper_id mapping.
+    Used for evidence metrics, retry logic, confidence estimation.
+    """
+    sentence_papers = []
+
+    for sentence in answer:
+        papers = set()
+
+        for cid in sentence.get("citations", []):
+            source = source_lookup.get(cid)
+            if source and source.get("paper_id"):
+                papers.add(source["paper_id"])
+
+        sentence_papers.append(papers)
+
+    return sentence_papers
+
+
+
+def compute_evidence_metrics(aggregation, sentence_papers):
     paper_stats = aggregation["paper_stats"]
 
     retrieved_chunks = sum(
@@ -68,15 +89,15 @@ def compute_evidence_metrics(aggregation, sentence_citations):
         max_chunks_from_one_paper / used_chunks if used_chunks else 0.0
     )
 
-    total_sentences = len(sentence_citations)
-    total_citations = sum(len(c) for c in sentence_citations)
+    total_sentences = len(sentence_papers)
+    total_citations = sum(len(c) for c in sentence_papers)
 
     avg_citations_per_sentence = (
         total_citations / total_sentences if total_sentences else 0.0
     )
 
     multi_source_sentences = sum(
-        1 for c in sentence_citations if len(c) >= 2
+        1 for c in sentence_papers if len(c) >= 2
     )
 
     multi_source_ratio = (

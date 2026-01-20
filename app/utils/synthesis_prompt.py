@@ -87,8 +87,7 @@ QUESTION:
 RETRY = """
 RETRY INSTRUCTION:
 The previous synthesis relied heavily on a limited subset of the available sources.
-Re-evaluate the provided evidence and, where supported, incorporate relevant findings
-from additional independent papers. Do not add unsupported claims.
+Re-evaluate the provided evidence and, where supported, incorporate relevant findings from additional independent papers. Do not add unsupported claims.
 """
 
 BASIC_SYNTHESIS_PROMPT = TASK_HEADER + CORE_SYNTHESIS_INSTRUCTIONS

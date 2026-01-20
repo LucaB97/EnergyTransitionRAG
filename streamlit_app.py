@@ -19,9 +19,9 @@ HEALTH_URL = "http://localhost:8000/health"
 
 try:
     requests.get(HEALTH_URL, timeout=2)
-    st.success("Backend is running")
 except:
-    st.error("Backend is not reachable")
+    st.error("🚫 Backend is not reachable. ")
+    st.stop()
 
 # ---------------------------------------------------------------------
 # App header
@@ -156,66 +156,107 @@ if data.get("sources"):
         author_year = f"{src['authors']} ({src['year']})"
         journal = f" — {src['journal']}" if src.get("journal") else ""
         st.markdown(
+            f"<div style='margin-bottom:8px;'>"
             f"<small>{author_year}{journal}</small><br>"
-            f"<strong>**{src['title']}**</strong>",
+            f"<strong>{src['title']}</strong>"
+            f"</div>",
             unsafe_allow_html=True
         )
-        st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------
 # Metadata
 # ---------------------------------------------------------------------
-st.subheader("⏱️ Metadata")
-st.json(data.get("meta", {}))
+st.markdown("<br><br>", unsafe_allow_html=True)
+with st.expander("⏱️ Metadata", expanded=False):
+    st.json(data.get("meta", {}))
 
 # ---------------------------------------------------------------------
-# Debug panel (sidebar-controlled)
+# 📊 Evidence Metrics
 # ---------------------------------------------------------------------
 with st.sidebar:
     show_debug = st.checkbox("🧪 Show debug panel", value=False)
 
-if show_debug and "debug" in data:
-    st.subheader("🧪 Debug: Evidence Trace")
-
+if "debug" in data:
     debug = data["debug"]
-    chunks = debug["chunks"]
-    papers = debug["papers"]
     metrics = debug["metrics"]
 
-    # -----------------------------------------------------------------
-    # Evidence trace (grouped by paper)
-    # -----------------------------------------------------------------
-    for paper in papers:
-        paper_id = paper["paper_id"]
-        paper_chunks = [
-            c for c in chunks if c["paper_id"] == paper_id
-        ]
+with st.expander("📊 Evidence Metrics", expanded=False):
+    col1, col2, col3 = st.columns(3)
 
-        used_chunks = [c for c in paper_chunks if c["used_in_synthesis"]]
-
-        # Paper header
-        # st.markdown(
-        #     f"**📄 {paper['title']} ({paper['year']})**\n"
-        #     f"*{paper['authors']}*  \n"
-        #     f"Used chunks: **{paper['chunks_used']} / {paper['chunks_retrieved']}*"
-        # )
-
-        st.markdown(f"**📄 {paper['title']} ({paper['year']})**")
-        st.caption(
-            f"{paper['authors']} · "
-            f"Used {paper['chunks_used']} / {paper['chunks_retrieved']} chunks"
+    with col1:
+        st.metric("Retrieved chunks", metrics["retrieved_chunks"])
+        st.metric("Used chunks", metrics["used_chunks"])
+        st.metric(
+            "Chunk coverage",
+            f"{metrics['chunk_coverage']:.0%}"
         )
 
+    with col2:
+        st.metric("Retrieved papers", metrics["retrieved_papers"])
+        st.metric("Unique papers used", metrics["used_papers"])
+        st.metric(
+            "Paper coverage",
+            f"{metrics['paper_coverage']:.0%}"
+        )
+
+    with col3:
+        st.metric("Paper dominance", metrics["paper_dominance"])
+        st.metric(
+            "Avg citations / sentence",
+            metrics["avg_citations_per_sentence"]
+        )
+        st.metric(
+            "Multi-source sentences",
+            f"{metrics['multi_source_sentence_ratio']:.0%}"
+        )
+
+# ---------------------------------------------------------------------
+# Debug panel (sidebar-controlled)
+# ---------------------------------------------------------------------
+
+if show_debug and debug:
+    chunks = debug["chunks"]
+    papers = debug["papers"]       
+
+    # =============================================================
+    # 📄 Evidence Trace
+    # =============================================================
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("### 📄 Evidence Trace")
+
+    for paper in papers:
+        paper_id = paper["paper_id"]
+
+        paper_chunks = [
+            c for c in chunks
+            if c["paper_id"] == paper_id
+        ]
+
+        used_chunks = [
+            c for c in paper_chunks
+            if c["used_in_synthesis"]
+        ]
+
+        # Paper header
+        st.markdown(
+            f"**📄 {paper['title']} ({paper['year']})**"
+        )
+        st.caption(
+            f"{paper['authors']} · "
+            f"Used {paper['chunks_used']} / "
+            f"{paper['chunks_retrieved']} chunks"
+        )
 
         # Chunk list
         for c in paper_chunks:
             is_used = c["used_in_synthesis"]
 
-            border_color = "🟢" if is_used else "⚪"
+            indicator = "🟢" if is_used else "⚪"
             opacity = 1.0 if is_used else 0.6
 
             with st.expander(
-                f"{border_color} {c['chunk_id'].split('__')[-1]} "
+                f"{indicator} "
+                f"{c['chunk_id'].split('__')[-1]} "
                 f"(rank #{c['rank']})",
                 expanded=False
             ):
@@ -226,25 +267,3 @@ if show_debug and "debug" in data:
                     unsafe_allow_html=True
                 )
 
-    # -----------------------------------------------------------------
-    # Evidence metrics
-    # -----------------------------------------------------------------
-    st.markdown("---")
-    st.markdown("### 📊 Evidence Metrics")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Retrieved chunks", metrics["retrieved_chunks"])
-        st.metric("Used chunks", metrics["used_chunks"])
-        st.metric("Chunk coverage", f"{metrics['chunk_coverage']:.0%}")
-
-    with col2:
-        st.metric("Retrieved papers", metrics["retrieved_papers"])
-        st.metric("Unique papers used", metrics["used_papers"])
-        st.metric("Paper coverage", f"{metrics['paper_coverage']:.0%}")
-
-    with col3:
-        st.metric("Paper dominance", metrics["paper_dominance"])
-        st.metric("Avg citations per sentence", metrics["avg_citations_per_sentence"])
-        st.metric("Multi-source sentence ratio", metrics["multi_source_sentence_ratio"])
