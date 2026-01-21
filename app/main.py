@@ -1,6 +1,6 @@
 import time
 import logging
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 
 from app.dependencies import load_system
 from app.schemas import QueryRequest, QueryResponse, Sentence
@@ -128,6 +128,8 @@ def query_endpoint(request: QueryRequest, req: Request):
         if score > best_score:
             best_score = score
             best_output = synthesis_output
+            best_aggregation = aggregation
+            best_metrics = metrics
 
         # --- Retry decision ---
         if should_retry(metrics) and attempt < max_attempts:
@@ -174,7 +176,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         sources = [build_source_entry(pid, source_lookup) for pid in cited_paper_ids]
 
     ## Add debug info for UI
-    debug = get_debug_info(aggregation, metrics)
+    debug = get_debug_info(best_aggregation)
 
 
     return QueryResponse(
@@ -195,6 +197,7 @@ def query_endpoint(request: QueryRequest, req: Request):
                 "trigger": "low_source_diversity"
             }
         },
+        evidence_metrics=best_metrics,
         debug=debug
     )
 

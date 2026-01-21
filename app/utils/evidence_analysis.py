@@ -122,12 +122,11 @@ def compute_evidence_metrics(aggregation, sentence_papers):
 
 
 
-def get_debug_info(aggregation, metrics):
+def get_debug_info(aggregation):
     return {
         "chunks": aggregation["chunks"],
         "papers": [
             {"paper_id": pid, **stats}
             for pid, stats in aggregation["paper_stats"].items()
-        ],
-        "metrics": metrics,
+        ]
     }

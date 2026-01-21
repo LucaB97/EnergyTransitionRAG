@@ -60,6 +60,10 @@ class QueryResponse(BaseModel):
         default_factory=dict,
         description="Additional metadata about retrieval and synthesis"
     )
+    evidence_metrics: Optional[Dict] = Field(
+        default=None,
+        description="Evidence quality metrics; None if synthesis failed"
+    )
     debug: Dict = Field(
         default_factory=dict,
         description="Debug info"
