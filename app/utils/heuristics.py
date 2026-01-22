@@ -1,4 +1,12 @@
+
 def determine_reason(synthesis_output, chunk_lookup):
+    """
+    Qualitative failure explanation.
+    Useful for user-facing messages.
+    
+    :param synthesis_output: Description
+    :param chunk_lookup: Description
+    """
     answer = synthesis_output.get("answer", [])
 
     if not answer:

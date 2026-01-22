@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI, Request
 
 from app.dependencies import load_system
-from app.schemas import QueryRequest, QueryResponse, Sentence
+from app.schemas import QueryRequest, QueryResponse, Sentence, Confidence
 from app.utils.synthesis_prompt import BASIC_SYNTHESIS_PROMPT, RETRY_SYNTHESIS_PROMPT
 from app.utils.citations import remove_citations_inside_text, resolve_answer_citations, build_source_entry
 from app.utils.heuristics import determine_reason, should_retry
@@ -85,6 +85,12 @@ def query_endpoint(request: QueryRequest, req: Request):
     max_attempts = 2
     attempt = 0
     best_output, best_score = None, -1
+    
+    sources = []
+    best_metrics = None
+    debug = {}
+    confidence = None
+    
     prompt = BASIC_SYNTHESIS_PROMPT
     last_error = None
     
@@ -109,6 +115,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         synthesis_output["reason"] = determine_reason(synthesis_output, source_lookup)
 
         if synthesis_output["reason"] == "out_of_scope":
+            best_output = synthesis_output
             break
 
 
@@ -124,10 +131,13 @@ def query_endpoint(request: QueryRequest, req: Request):
         aggregation = aggregate_evidence(retrieved_chunks, used_chunks_ids)
         metrics = compute_evidence_metrics(aggregation, sentence_papers)
 
-        score = compute_confidence(metrics)
+        score, label = compute_confidence(metrics, synthesis_output["reason"])
+        
         if score > best_score:
             best_score = score
+            best_label = label
             best_output = synthesis_output
+            best_sentence_papers = sentence_papers
             best_aggregation = aggregation
             best_metrics = metrics
 
@@ -169,14 +179,11 @@ def query_endpoint(request: QueryRequest, req: Request):
     resolved_answer = remove_citations_inside_text(resolved_answer)
 
     ## Build list of sources
-    if best_output["reason"] == "out_of_scope":
-        sources = []
-    else:
-        cited_paper_ids = set().union(*sentence_papers)
+    if best_output["reason"] != "out_of_scope":
+        cited_paper_ids = set().union(*best_sentence_papers)
         sources = [build_source_entry(pid, source_lookup) for pid in cited_paper_ids]
-
-    ## Add debug info for UI
-    debug = get_debug_info(best_aggregation)
+        debug = get_debug_info(best_aggregation)
+        confidence = Confidence(score=best_score, label=best_label)
 
 
     return QueryResponse(
@@ -198,6 +205,6 @@ def query_endpoint(request: QueryRequest, req: Request):
             }
         },
         evidence_metrics=best_metrics,
-        debug=debug
+        debug=debug, 
+        confidence = confidence
     )
-

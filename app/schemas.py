@@ -39,6 +39,17 @@ class Source(BaseModel):
     )
 
 
+class Confidence(BaseModel):
+    score: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Confidence score in [0, 1]"
+    )
+    label: Literal["High", "Medium", "Low"] = Field(
+        description="Human-readable confidence level"
+    )
+
+
 class QueryResponse(BaseModel):
     question: str = Field(description="Original research question")
     reason: Literal[
@@ -67,4 +78,8 @@ class QueryResponse(BaseModel):
     debug: Dict = Field(
         default_factory=dict,
         description="Debug info"
+    )
+    confidence: Optional[Confidence] = Field(
+        default=None,
+        description="Overall confidence in the synthesized answer; None if generation failed"
     )

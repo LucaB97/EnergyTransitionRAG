@@ -4,6 +4,7 @@ def aggregate_evidence(retrieved_chunks, used_chunk_ids):
     """
     Aggregate evidence at chunk and paper level.
     This is the single source of truth for evidence statistics.
+    Useful for UI, observability, and automatic decisions (retry / confidence).
     """
 
     chunks = []
