@@ -85,12 +85,6 @@ content:
                 parsed = json.loads(raw_output)
 
                 # --- Structural checks ---
-                if "reason" not in parsed:
-                    raise ValueError("Missing 'reason' field.")
-
-                if parsed["reason"] == "out_of_scope":
-                    parsed["answer"] = []
-
                 if "answer" not in parsed or not isinstance(parsed["answer"], list):
                     raise ValueError("Invalid or missing 'answer'.")
 

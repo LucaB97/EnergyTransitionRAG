@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
 
-from app.utils.inline_citations import render_sentence_with_inline_citations
-from app.utils.export import response_to_json, response_to_markdown
+from utils.inline_citations import render_sentence_with_inline_citations
+from utils.export import response_to_json, response_to_markdown
 # ---------------------------------------------------------------------
 # Page config
 # ---------------------------------------------------------------------

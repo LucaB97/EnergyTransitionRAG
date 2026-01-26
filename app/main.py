@@ -111,6 +111,7 @@ def query_endpoint(request: QueryRequest, req: Request):
 
     max_attempts = 2
     attempt = 0
+    synthesis_output = None
     best_output, best_score = None, -1
     last_error = None
 
@@ -170,13 +171,14 @@ def query_endpoint(request: QueryRequest, req: Request):
         score, label, explanation = compute_confidence(metrics, failure_reason)
         
         if score > best_score:
-            best_score = score
-            best_label = label
-            best_explanation = explanation
+            best_failure_reason = failure_reason
             best_output = synthesis_output
             best_sentence_papers = sentence_papers
             best_aggregation = aggregation
             best_metrics = metrics
+            best_score = score
+            best_label = label
+            best_explanation = explanation
 
         # --- Retry decision ---
         if metrics and should_retry(metrics) and attempt < max_attempts:
@@ -224,7 +226,7 @@ def query_endpoint(request: QueryRequest, req: Request):
 
     return QueryResponse(
         question=request.question,
-        reason=best_output["reason"],
+        reason=best_failure_reason,
         answer=[Sentence(**s) for s in resolved_answer],
         limitations=best_output["limitations"],
         sources=sources,
