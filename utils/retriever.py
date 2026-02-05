@@ -1,4 +1,3 @@
-import numpy as np
 import faiss
 from collections import defaultdict
 

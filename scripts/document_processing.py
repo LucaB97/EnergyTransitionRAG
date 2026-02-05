@@ -3,16 +3,14 @@ import pdfplumber
 import json
 from pathlib import Path
 
-from utils.pdf_extraction import extract_text_two_columns
-from utils.text_cleaning import (
-    clean_text, remove_headers_footers, remove_references
-)
+from utils.pdf_extraction import detect_layout, extract_text_two_columns
+from utils.text_cleaning import clean_text, remove_headers_footers, remove_references
 from utils.chunking import create_chunks
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PAPERS_DIR = PROJECT_ROOT / "data" / "papers"
-OUTPUT_PATH = PROJECT_ROOT / "data" / "chunks.json"
+OUTPUT_PATH = PROJECT_ROOT / "data" / "chunks1.json"
 METADATA_PATH = PROJECT_ROOT / "data" / "metadata.csv"
 
 metadata = pd.read_csv(METADATA_PATH)
@@ -24,6 +22,11 @@ for i in range(len(metadata)):
 
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
+            # layout = detect_layout(page)
+            # if layout == "two_column":
+            #     page_text = extract_text_two_columns(page)
+            # else:
+            #     page_text = page.extract_text(layout=True) or ""
             page_text = extract_text_two_columns(page)
             pages_lines.append(page_text.split("\n"))
 

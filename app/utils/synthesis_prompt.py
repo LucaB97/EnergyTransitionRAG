@@ -10,6 +10,18 @@ Question:
 {{QUESTION}}
 """
 
+# SCOPE_CLASSIFIER_PROMPT = """
+# You are a classifier.
+
+# Answer ONLY with "yes" or "no".
+
+# Question:
+# {{QUESTION}}
+
+# Can this question be answered using academic research papers
+# about renewable energy or energy transition?
+# """
+
 
 TASK_HEADER = """
 You are an expert research assistant specialized in environmental and social impact analysis.

@@ -36,7 +36,7 @@ pip install -r requirements.txt
 - Create a `metadata.csv` file summarizing each paper: ID, title, year, publishing journal.
 
 ### Phase 1: Document Processing
-`python -m scripts.phase1___document_processing`
+`python -m scripts.document_processing`
 - Convert PDFs to text.
 - Remove common headers, footers, and references.
 - Normalize whitespace.
@@ -44,7 +44,7 @@ pip install -r requirements.txt
 - Save chunks in JSON format with metadata: chunk ID, paper ID, title, year.
 
 ### Phase 2: Embeddings & Indexing
-`python -m scripts.phase2___build_index`
+`python -m scripts.build_index`
 
 ### Phase 3: Semantic Retrieval & LLM-Based Summarization (RAG)
 `python -m scripts.test___retrieval_and_synthesis`
