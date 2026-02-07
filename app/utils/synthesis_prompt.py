@@ -2,26 +2,13 @@ SCOPE_CLASSIFIER_PROMPT = """
 You are classifying user questions.
 
 Is the following question intended to be answered using peer-reviewed academic research 
-on the environmental or social impacts of renewable energy adoption or energy transition?
+on the social impacts of renewable energy adoption or energy transition?
 
 Answer ONLY with "yes" or "no".
 
 Question:
 {{QUESTION}}
 """
-
-# SCOPE_CLASSIFIER_PROMPT = """
-# You are a classifier.
-
-# Answer ONLY with "yes" or "no".
-
-# Question:
-# {{QUESTION}}
-
-# Can this question be answered using academic research papers
-# about renewable energy or energy transition?
-# """
-
 
 TASK_HEADER = """
 You are an expert research assistant specialized in environmental and social impact analysis.
@@ -71,6 +58,16 @@ CRITICAL CONSTRAINTS:
 - Do NOT include citations inside the sentence text.
 - Do NOT mention studies, authors, years, or evidence that are not listed in the "citations" field.
 - The "citations" field is the ONLY place where evidence may be referenced.
+
+TAG GUIDANCE:
+Some source chunks include high-level thematic tags (e.g., social acceptance, equity and justice, governance).
+These tags are provided solely as organizational metadata and are NOT evidence.
+All claims MUST be supported exclusively by the textual content of the cited chunks.
+Tags MUST NOT be cited, treated as findings, or used to justify claims.
+You MAY use tags only to:
+- Identify which broad social impact dimensions are represented in the retrieved evidence.
+- Help structure balanced synthesis when multiple dimensions are relevant to the question.
+- Avoid overlooking relevant perspectives when multiple tagged themes appear in the sources.
 
 OUTPUT FORMAT:
 You MUST return ONLY valid JSON.

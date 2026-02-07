@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import json
 from pathlib import Path
 from typing import Optional
@@ -12,7 +13,8 @@ from app.utils.synthesis import QueryScopeClassifier, ResearchSynthesisEngine
 
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CHUNKS_PATH = PROJECT_ROOT / "data" / "chunks.json"
+METADATA_PATH = PROJECT_ROOT / "data" / "metadata.csv"
+CHUNKS_PATH = PROJECT_ROOT / "data" / "chunks_500t_100o.json"
 FAISS_PATH = PROJECT_ROOT / "data" / "faiss_openai.index"
 
 
@@ -53,6 +55,7 @@ def load_system(app, profile: Optional[str] = None):
     synthesizer = ResearchSynthesisEngine(llm, max_attempts=3)
 
     # ---- Attach to app ----
+    app.state.metadata = pd.read_csv(METADATA_PATH)
     app.state.scope_classifier = scope_classifier
     app.state.retriever = retriever
     app.state.relevance_gate = relevance_gate

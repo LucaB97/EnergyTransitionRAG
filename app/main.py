@@ -28,15 +28,16 @@ def health_check(req: Request):
 
     return {
         "status": "ok",
-        "retriever_loaded": retriever is not None,
+        "scope_classifier_loaded": hasattr(req.app.state, "scope_classifier"),
         "index_loaded": (
             retriever is not None
             and hasattr(retriever, "index")
             and retriever.index is not None
         ),
         "index_size": retriever.index.ntotal if retriever else None,
-        "synthesizer_loaded": hasattr(req.app.state, "synthesizer"),
+        "retriever_loaded": retriever is not None,
         "relevance_gate_loaded": hasattr(req.app.state, "relevance_gate"),
+        "synthesizer_loaded": hasattr(req.app.state, "synthesizer"),
     }
 
 

@@ -28,11 +28,13 @@ class ResearchSynthesisEngine:
     def build_prompt(self, question, chunks, prompt_template):
         sources_text = ""
         for c in chunks:
+            tags = [t for t in [c.get("first_tag"), c.get("second_tag")] if t]
             sources_text += f"""
-                            SOURCE:
-                            chunk_id: {c['chunk_id']}
-                            content:
-                            {c['text']}
+SOURCE:
+chunk_id: {c['chunk_id']}
+tags: {", ".join(tags)}
+content:
+{c['text']}
                             """
         prompt = prompt_template.replace("{{SOURCES}}", sources_text).replace("{{QUESTION}}", question)
         return prompt
