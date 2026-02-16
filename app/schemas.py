@@ -55,7 +55,7 @@ class Confidence(BaseModel):
         le=1.0,
         description="Confidence score in [0, 1]"
     )
-    label: Literal["High", "Medium", "Low"] = Field(
+    label: Literal["Very High", "High", "Moderate", "Low", "Very Low", "None"] = Field(
         description="Human-readable confidence level"
     )
     explanation: List[str] = Field(
@@ -66,36 +66,63 @@ class Confidence(BaseModel):
 
 class QueryResponse(BaseModel):
     question: str = Field(description="Original research question")
-    reason: Literal[
-        "none",
+    
+    pipeline_status: Literal[
+        "success",
         "out_of_scope",
-        "absent_evidence",
-        "isolated_evidence",
-        "insufficient_evidence",
-        "generation_failed",
-        "retrieval_failed"
-    ]
+        "retrieval_failed",
+        "generation_error"
+    ] = Field(
+        description="Technical execution status of the pipeline"
+    )
+    
+    evidence: Literal[
+        "absent",
+        "isolated",
+        "weak",
+        "fragmented",
+        "thematic",
+        "robust"
+    ] = Field(
+        description="Structural characterization of retrieved evidence"
+    )
+
+    grounding: Literal[
+        "not_applicable",   # e.g. no synthesis performed
+        "complete",
+        "incomplete",
+        "weak"
+    ] = Field(
+        description="Quality of citation grounding in the synthesized answer"
+    )
+    
     answer: List[Sentence] = Field(
         description="Structured synthesis of the retrieved evidence"
     )
+    
     limitations: List[str] = Field(
         description="Known limitations, uncertainties, or gaps in the available evidence"
     )
+    
     sources: List[Source] = Field(
         description="Academic sources that support the synthesized answer"
     )
+    
     meta: Dict = Field(
         default_factory=dict,
         description="Additional metadata about retrieval and synthesis"
     )
+    
     evidence_metrics: Optional[Dict] = Field(
         default=None,
         description="Evidence quality metrics; None if synthesis failed"
     )
+    
     confidence: Optional[Confidence] = Field(
         default=None,
         description="Overall confidence in the synthesized answer; None if generation failed"
     )
+    
     debug: Dict = Field(
         default_factory=dict,
         description="Debug info"

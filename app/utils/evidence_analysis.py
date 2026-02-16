@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-def aggregate_evidence(retrieved_chunks, used_chunk_ids):
+def aggregate_evidence(relevant_chunks, used_chunk_ids):
     """
     Aggregate evidence at chunk and paper level.
     This is the single source of truth for evidence statistics.
@@ -14,9 +14,10 @@ def aggregate_evidence(retrieved_chunks, used_chunk_ids):
         "title": None,
         "authors": None,
         "year": None,
+        "journal": None
     })
 
-    for rank, c in enumerate(retrieved_chunks, start=1):
+    for rank, c in enumerate(relevant_chunks, start=1):
         used = c["chunk_id"] in used_chunk_ids
 
         chunks.append({
@@ -25,8 +26,8 @@ def aggregate_evidence(retrieved_chunks, used_chunk_ids):
             "title": c.get("title"),
             "authors": c.get("authors"),
             "year": c.get("year"),
+            "journal": c.get("journal"),
             "text": c.get("text"),
-            "similarity": c.get("score"),
             "rank": rank,
             "used_in_synthesis": used,
         })

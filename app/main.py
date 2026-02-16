@@ -7,9 +7,9 @@ from app.dependencies import load_system
 from app.schemas import QueryRequest, QueryResponse, Sentence, Confidence
 from app.utils.synthesis_prompt import SCOPE_CLASSIFIER_PROMPT, TASK_HEADER, CORE_SYNTHESIS_INSTRUCTIONS, RETRY_PROMPTS
 from app.utils.citations import build_citation_index, build_sources, CitationStyle, FORMATTERS, resolve_answer_citations, remove_citations_inside_text 
-from app.utils.heuristics import determine_reason, determine_retry_reason
+from app.utils.heuristics import determine_retry_reason
 from app.utils.evidence_analysis import aggregate_evidence, extract_sentence_paper_ids, compute_evidence_metrics, get_debug_info
-from app.utils.confidence import compute_confidence
+from app.utils.confidence import determine_grounding_status, compute_confidence
 
 app = FastAPI(
     title="Environmental Research Synthesizer",
@@ -54,16 +54,30 @@ def query_endpoint(request: QueryRequest, req: Request):
     relevance_profiler = req.app.state.relevance_profiler
     synthesizer = req.app.state.synthesizer
     
+    pipeline_status = "success"
+    evidence = "absent"
+    grounding = "not_applicable"
+
     #
     # --- Zero-shot classification of scope---
     #
     if not scope_classifier.is_in_scope(request.question, SCOPE_CLASSIFIER_PROMPT):
+        pipeline_status = "out_of_scope"
+        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        
         return QueryResponse(
             question=request.question,
-            reason="out_of_scope",
+            pipeline_status=pipeline_status,
+            evidence=evidence,
+            grounding=grounding,
             answer=[],
             limitations=["The available literature does not address the question."],
             sources=[],
+            confidence = Confidence(
+                score=score,
+                label=label,
+                explanation=explanation
+            )
         )
 
     #
@@ -76,9 +90,14 @@ def query_endpoint(request: QueryRequest, req: Request):
     retrieval_time = time.perf_counter() - t0
     
     if not retrieved_chunks:
+        pipeline_status = "retrieval_failed"
+        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        
         return QueryResponse(
             question=request.question,
-            reason="retrieval_empty",
+            pipeline_status=pipeline_status,
+            evidence=evidence,
+            grounding=grounding,
             answer=[],
             limitations=[
                 "No documents could be retrieved for this question."
@@ -88,16 +107,27 @@ def query_endpoint(request: QueryRequest, req: Request):
                 "top_k": request.top_k_faiss + request.top_k_bm25,
                 "chunks_retrieved": 0
                 },
+            confidence = Confidence(
+                score=score,
+                label=label,
+                explanation=explanation
+            )
         )
 
     t1 = time.perf_counter()
     profile = relevance_profiler.rerank_and_profile(request.question, retrieved_chunks)
     profiling_time = time.perf_counter() - t1
 
-    if profile["evidence_label"] == "absent":
+    evidence = profile["evidence_label"]
+    
+    if evidence == "absent":
+        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+
         return QueryResponse(
             question=request.question,
-            reason="absent_evidence",
+            pipeline_status=pipeline_status,
+            evidence=evidence,
+            grounding=grounding,
             answer=[],
             limitations=["The literature retrieved is topically related, but does not address this question directly."],
             sources=[],
@@ -105,10 +135,15 @@ def query_endpoint(request: QueryRequest, req: Request):
                 "chunks_requested": request.top_k_faiss + request.top_k_bm25,
                 "chunks_retrieved": len(retrieved_chunks),
                 "relevance_metrics": profile["metrics"]
-            }
+            },
+            confidence = Confidence(
+                score=score,
+                label=label,
+                explanation=explanation
+            )
         )
         
-    elif profile["evidence_label"] == "isolated":
+    elif evidence == "isolated":
         strong_hit = relevance_profiler.get_strong_hits(profile["ranked_chunks"])
         sh_metadata = metadata.loc[strong_hit["paper_id"]]
         strong_hit['title'] = str(sh_metadata['title'])
@@ -116,9 +151,13 @@ def query_endpoint(request: QueryRequest, req: Request):
         strong_hit['year'] = int(sh_metadata['year'])
         strong_hit['journal'] = str(sh_metadata['journal'])
         
+        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+
         return QueryResponse(
             question=request.question,
-            reason="isolated_evidence",
+            pipeline_status=pipeline_status,
+            evidence=evidence,
+            grounding=grounding,
             answer=[],
             limitations=["The retrieved evidence is too narrow and context-specific to support synthesis across studies."],
             sources=[],
@@ -127,6 +166,11 @@ def query_endpoint(request: QueryRequest, req: Request):
                 "chunks_retrieved": len(retrieved_chunks),
                 "relevance_metrics": profile["metrics"]
             }, 
+            confidence = Confidence(
+                score=score,
+                label=label,
+                explanation=explanation
+            ),
             debug = {"chunks": strong_hit}
         )
             
@@ -185,18 +229,22 @@ def query_endpoint(request: QueryRequest, req: Request):
                 "No meaningful answer could be produced from the available literature."
                 ]
             
+            score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+            
             return QueryResponse(
                 question=request.question,
-                reason="insufficient_evidence",
+                pipeline_status=pipeline_status,
+                evidence=evidence,
+                grounding=grounding,
                 answer=[],
                 limitations=limitations,
                 sources=[],
                 evidence_metrics=None,
-                confidence={
-                    "score": 0.0,
-                    "label": "Low",
-                    "explanation": []
-                }
+                confidence = Confidence(
+                    score=score,
+                    label=label,
+                    explanation=explanation
+                )
             )
 
         ## Evidence metrics
@@ -211,15 +259,15 @@ def query_endpoint(request: QueryRequest, req: Request):
         aggregation = aggregate_evidence(relevant_chunks, used_chunks_ids)
         metrics = compute_evidence_metrics(aggregation, sentence_papers)
 
-        failure_reason = determine_reason(synthesis_output, source_lookup)
-        score, label, explanation = compute_confidence(metrics, failure_reason)
+        grounding = determine_grounding_status(metrics)
+        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding, metrics)
         
         if score > best_score:
-            best_failure_reason = failure_reason
             best_output = synthesis_output
             best_sentence_papers = sentence_papers
             best_aggregation = aggregation
             best_metrics = metrics
+            best_grounding = grounding
             best_score = score
             best_label = label
             best_explanation = explanation
@@ -243,14 +291,24 @@ def query_endpoint(request: QueryRequest, req: Request):
 
     # --- Failure fallback ---
     if last_error and not synthesis_output:
+        pipeline_status = "generation_error"
+        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        
         return QueryResponse(
             question=request.question,
-            reason="generation_failed",
+            pipeline_status=pipeline_status,
+            evidence=evidence,
+            grounding=grounding,
             answer=[],
             limitations=[
                 "The system was unable to generate a stable, well-supported synthesis."
             ],
             sources=[],
+            confidence = Confidence(
+                score=score,
+                label=label,
+                explanation=explanation
+            )
         )
 
     synthesis_time = time.perf_counter() - t2
@@ -259,22 +317,22 @@ def query_endpoint(request: QueryRequest, req: Request):
     ## Build list of sources
     citation_index = build_citation_index(best_sentence_papers)
     sources = build_sources(citation_index, source_lookup)
-
     debug = get_debug_info(best_aggregation)
-    confidence = Confidence(score=best_score, label=best_label, explanation=best_explanation)
-    
+
     #
     # --- Output preparation ---
     #
     
     style = CitationStyle.NUMERIC
     resolved_answer = resolve_answer_citations(best_output["answer"], source_lookup, citation_index, FORMATTERS[style])
-    
+
     resolved_answer = remove_citations_inside_text(resolved_answer) ## remove references from synthesis text
 
     return QueryResponse(
         question=request.question,
-        reason=best_failure_reason,
+        pipeline_status = pipeline_status,
+        evidence = evidence,
+        grounding = best_grounding,
         answer=[Sentence(**s) for s in resolved_answer],
         limitations=best_output["limitations"],
         sources=sources,
@@ -293,6 +351,10 @@ def query_endpoint(request: QueryRequest, req: Request):
             }
         },
         evidence_metrics=best_metrics,
-        confidence = confidence,
+        confidence = Confidence(
+            score=best_score,
+            label=best_label,
+            explanation=best_explanation
+        ),
         debug=debug
     )
