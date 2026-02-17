@@ -5,11 +5,13 @@ from fastapi import FastAPI, Request
 
 from app.dependencies import load_system
 from app.schemas import QueryRequest, QueryResponse, Sentence, Confidence
+from app.response import build_response
 from app.utils.synthesis_prompt import SCOPE_CLASSIFIER_PROMPT, TASK_HEADER, CORE_SYNTHESIS_INSTRUCTIONS, RETRY_PROMPTS
 from app.utils.citations import build_citation_index, build_sources, CitationStyle, FORMATTERS, resolve_answer_citations, remove_citations_inside_text 
 from app.utils.heuristics import determine_retry_reason
 from app.utils.evidence_analysis import aggregate_evidence, extract_sentence_paper_ids, compute_evidence_metrics, get_debug_info
 from app.utils.confidence import determine_grounding_status, compute_confidence
+
 
 app = FastAPI(
     title="Environmental Research Synthesizer",
@@ -63,22 +65,11 @@ def query_endpoint(request: QueryRequest, req: Request):
     #
     if not scope_classifier.is_in_scope(request.question, SCOPE_CLASSIFIER_PROMPT):
         pipeline_status = "out_of_scope"
+        limitations = ["The question cannot be answered from the available sources."]
+        meta = {"scope_decision": "out_of_scope"}
         score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
-        
-        return QueryResponse(
-            question=request.question,
-            pipeline_status=pipeline_status,
-            evidence=evidence,
-            grounding=grounding,
-            answer=[],
-            limitations=["The available literature does not address the question."],
-            sources=[],
-            confidence = Confidence(
-                score=score,
-                label=label,
-                explanation=explanation
-            )
-        )
+        confidence = Confidence(score=score, label=label, explanation=explanation)
+        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
 
     #
     # --- Retrieval ---
@@ -91,29 +82,15 @@ def query_endpoint(request: QueryRequest, req: Request):
     
     if not retrieved_chunks:
         pipeline_status = "retrieval_failed"
+        limitations = ["No documents could be retrieved for this question."]
+        meta={"top_k": request.top_k_faiss + request.top_k_bm25, "chunks_retrieved": 0}
         score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
-        
-        return QueryResponse(
-            question=request.question,
-            pipeline_status=pipeline_status,
-            evidence=evidence,
-            grounding=grounding,
-            answer=[],
-            limitations=[
-                "No documents could be retrieved for this question."
-            ],
-            sources=[],
-            meta={
-                "top_k": request.top_k_faiss + request.top_k_bm25,
-                "chunks_retrieved": 0
-                },
-            confidence = Confidence(
-                score=score,
-                label=label,
-                explanation=explanation
-            )
-        )
+        confidence = Confidence(score=score, label=label, explanation=explanation)
+        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
 
+    #
+    # --- Reranking & Profiling ---
+    #
     t1 = time.perf_counter()
     profile = relevance_profiler.rerank_and_profile(request.question, retrieved_chunks)
     profiling_time = time.perf_counter() - t1
@@ -121,59 +98,34 @@ def query_endpoint(request: QueryRequest, req: Request):
     evidence = profile["evidence_label"]
     
     if evidence == "absent":
-        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
-
-        return QueryResponse(
-            question=request.question,
-            pipeline_status=pipeline_status,
-            evidence=evidence,
-            grounding=grounding,
-            answer=[],
-            limitations=["The literature retrieved is topically related, but does not address this question directly."],
-            sources=[],
-            meta={
+        limitations=["The literature retrieved is topically related, but does not address this question directly."]
+        meta={
                 "chunks_requested": request.top_k_faiss + request.top_k_bm25,
                 "chunks_retrieved": len(retrieved_chunks),
                 "relevance_metrics": profile["metrics"]
-            },
-            confidence = Confidence(
-                score=score,
-                label=label,
-                explanation=explanation
-            )
-        )
+            }
+        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        confidence = Confidence(score=score, label=label, explanation=explanation)
+        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
         
     elif evidence == "isolated":
+        limitations=["The retrieved evidence is too narrow and context-specific to support synthesis across studies."]
+        meta={
+                "chunks_requested": request.top_k_faiss + request.top_k_bm25,
+                "chunks_retrieved": len(retrieved_chunks),
+                "relevance_metrics": profile["metrics"]
+            }
+        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        confidence = Confidence(score=score, label=label, explanation=explanation)
+
         strong_hit = relevance_profiler.get_strong_hits(profile["ranked_chunks"])
         sh_metadata = metadata.loc[strong_hit["paper_id"]]
         strong_hit['title'] = str(sh_metadata['title'])
         strong_hit['authors'] = str(sh_metadata['authors'])
         strong_hit['year'] = int(sh_metadata['year'])
         strong_hit['journal'] = str(sh_metadata['journal'])
-        
-        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
-
-        return QueryResponse(
-            question=request.question,
-            pipeline_status=pipeline_status,
-            evidence=evidence,
-            grounding=grounding,
-            answer=[],
-            limitations=["The retrieved evidence is too narrow and context-specific to support synthesis across studies."],
-            sources=[],
-            meta={
-                "chunks_requested": request.top_k_faiss + request.top_k_bm25,
-                "chunks_retrieved": len(retrieved_chunks),
-                "relevance_metrics": profile["metrics"]
-            }, 
-            confidence = Confidence(
-                score=score,
-                label=label,
-                explanation=explanation
-            ),
-            debug = {"chunks": strong_hit}
-        )
-            
+        debug = {"chunks": strong_hit}
+        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence, debug=debug)            
 
     #
     # --- Synthesis ---
@@ -196,7 +148,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         for c in relevant_chunks
     }
 
-    max_attempts = 2
+    max_attempts = 3
     attempt = 0
     synthesis_output = None
     best_output, best_score = None, -1
@@ -225,27 +177,16 @@ def query_endpoint(request: QueryRequest, req: Request):
         answer = synthesis_output["answer"]
         
         if not answer:
-            limitations = synthesis_output.get("limitations") or [
-                "No meaningful answer could be produced from the available literature."
-                ]
-            
+            grounding = "not_answered"
+            limitations = synthesis_output.get("limitations") or ["No meaningful answer could be produced from the available literature."]
+            meta={
+                "chunks_requested": request.top_k_faiss + request.top_k_bm25,
+                "chunks_retrieved": len(retrieved_chunks),
+                "relevance_metrics": profile["metrics"]
+            }
             score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
-            
-            return QueryResponse(
-                question=request.question,
-                pipeline_status=pipeline_status,
-                evidence=evidence,
-                grounding=grounding,
-                answer=[],
-                limitations=limitations,
-                sources=[],
-                evidence_metrics=None,
-                confidence = Confidence(
-                    score=score,
-                    label=label,
-                    explanation=explanation
-                )
-            )
+            confidence = Confidence(score=score, label=label, explanation=explanation)
+            return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
 
         ## Evidence metrics
         sentence_papers = extract_sentence_paper_ids(synthesis_output["answer"], source_lookup)
@@ -292,24 +233,14 @@ def query_endpoint(request: QueryRequest, req: Request):
     # --- Failure fallback ---
     if last_error and not synthesis_output:
         pipeline_status = "generation_error"
+        limitations=["The system was unable to generate a reliable answer this time. Please try again."]
+        meta={
+            "generation_error": True,
+            "last_error": str(last_error) if last_error else None
+        }
         score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
-        
-        return QueryResponse(
-            question=request.question,
-            pipeline_status=pipeline_status,
-            evidence=evidence,
-            grounding=grounding,
-            answer=[],
-            limitations=[
-                "The system was unable to generate a stable, well-supported synthesis."
-            ],
-            sources=[],
-            confidence = Confidence(
-                score=score,
-                label=label,
-                explanation=explanation
-            )
-        )
+        confidence = Confidence(score=score, label=label, explanation=explanation)
+        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
 
     synthesis_time = time.perf_counter() - t2
     total_time = time.perf_counter() - start_time

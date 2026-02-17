@@ -140,7 +140,7 @@ class RelevanceProfiler:
         Returns:
             list[dict]: Chunks with z-score >= z_threshold, annotated with their z-score
         """
-        scores = np.array([c["score"] for c in ranked_chunks])
+        scores = np.array([c["final_score"] for c in ranked_chunks])
         mean = scores.mean()
         std = scores.std()
         if std < 1e-6:

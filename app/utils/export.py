@@ -1,6 +1,6 @@
 import json
 from typing import Dict, Any
-
+import streamlit as st
 
 
 def response_to_json(
@@ -74,3 +74,41 @@ def response_to_markdown(response: Dict[str, Any]) -> str:
             lines.append(f"{k.title()}: {v}")
 
     return "\n".join(lines)
+
+
+
+def export_output(data):
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+
+    with col_center:
+        with st.container():
+            export_format = st.radio(
+                "Format",
+                ["JSON", "Markdown"],
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+                
+            if export_format == "JSON":
+                has_debug = bool(data.get("debug"))
+                include_debug = st.checkbox(
+                    "Include debug evidence (chunks & papers)",
+                    value=False,
+                    disabled=not has_debug
+                )
+                data_export = response_to_json(data, include_debug)
+                filename = "query_response.json"
+                mime = "application/json"
+
+            else:
+                data_export = response_to_markdown(data)
+                filename = "query_response.md"
+                mime = "text/markdown"
+
+            st.download_button(
+                label="Download results",
+                data=data_export,
+                file_name=filename,
+                mime=mime,
+                use_container_width=True,
+            )
