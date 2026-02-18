@@ -59,53 +59,70 @@ class RelevanceProfiler:
         return [c for c, s in ranked]
 
 
-    def classify_evidence(self, scores):
+    def classify_evidence(self, chunks):
         """
-        Classify the overall evidence distribution based on scores.
+        Classify the overall evidence distribution based on chunk scores
+        and source diversity.
 
         Args:
-            scores (list[float] or np.ndarray): Cross-encoder scores for retrieved chunks.
+            chunks (list[dict]): Retrieved chunks, each with:
+                - "score": cross-encoder score
+                - "paper_id": identifier of source paper
 
         Returns:
-            str: Evidence label, one of:
-                - 'absent': No chunk meets the absolute floor (no real signal)
-                - 'isolated': One dominant chunk, others weak
-                - 'fragmented': Small scattered signal, no clear cluster
-                - 'thematic': Several moderately strong chunks
-                - 'robust': Multiple strong chunks
-                - 'weak': Low/moderate, indeterminate structure
-
-        Notes:
-            - Z-score normalization is applied to measure relative salience
-            - Floor safeguard ensures weak/noisy distributions are classified as 'absent'
+            str: Evidence label
         """
+
+        if not chunks:
+            return "absent"
+
+        scores = np.array([c["final_score"] for c in chunks])
+        paper_ids = [c["paper_id"] for c in chunks]
+
         mean = scores.mean()
         std = scores.std()
         max_score = scores.max()
 
-        # Floor safeguard
+        # --- Absolute floor safeguard ---
         if max_score < self.floor:
             return "absent"
 
+        # --- Z-normalization ---
         if std < 1e-6:
             z = np.zeros_like(scores)
         else:
             z = (scores - mean) / std
 
-        max_z = z.max()
-        strong_hits = np.sum(z > 1)
-        moderate_hits = np.sum(z > 0.5)
+        strong_indices = np.where(z > 1.0)[0]
+        moderate_indices = np.where(z > 0.5)[0]
 
+        strong_hits = len(strong_indices)
+        moderate_hits = len(moderate_indices)
+
+        distinct_strong_sources = len(
+            set(paper_ids[i] for i in strong_indices)
+        )
+
+        max_z = z.max()
+
+        # --- Isolated ---
         if strong_hits == 1 and max_z > 2:
             return "isolated"
-        elif strong_hits >= 3:
+
+        # --- Robust (much stricter now) ---
+        if strong_hits >= 10 and distinct_strong_sources >= 3:
             return "robust"
-        elif moderate_hits >= 3:
+
+        # --- Thematic ---
+        if strong_hits >= 5 and distinct_strong_sources >= 2:
             return "thematic"
-        elif strong_hits <= 2 and moderate_hits <= 2:
+
+        # --- Fragmented ---
+        if strong_hits <= 2 and moderate_hits <= 3:
             return "fragmented"
-        else:
-            return "weak"
+
+        return "weak"
+
 
 
     def rerank_and_profile(self, question, chunks):
@@ -114,7 +131,7 @@ class RelevanceProfiler:
         """
         scores = self.score(question, chunks)
         ranked_chunks = self.rerank(chunks, scores)
-        evidence_label = self.classify_evidence(scores)
+        evidence_label = self.classify_evidence(ranked_chunks)
         
         return {
             "ranked_chunks": ranked_chunks,
@@ -156,36 +173,3 @@ class RelevanceProfiler:
                 strong_hits.append(chunk_copy)
 
         return strong_hits
-
-
-    # def is_relevant(self, question, chunks):
-    #     scores = self.score(question, chunks)
-    #     strong_hits = sum(s >= self.min_score for s in scores)
-    #     return strong_hits >= self.min_hits, strong_hits
-
-    
-    # def debug(self, question, chunks, show_only_relevant=False):
-    #     scores = self.score(question, chunks)
-        
-    #     if show_only_relevant:
-    #         return [
-    #             {
-    #                 "chunk_id": c["chunk_id"],
-    #                 "paper_id": c["paper_id"],
-    #                 "text": c["text"],
-    #                 "score": float(score)
-    #             }
-    #             for c, score in zip(chunks, scores) if score >= self.min_score
-    #         ]
-        
-    #     else:
-    #         return [
-    #             {
-    #                 "chunk_id": c["chunk_id"],
-    #                 "paper_id": c["paper_id"],
-    #                 "text": c["text"],
-    #                 "score": float(score),
-    #                 "strong_hit": score >= self.min_score
-    #             }
-    #             for c, score in zip(chunks, scores)
-    #         ]

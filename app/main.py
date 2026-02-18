@@ -10,7 +10,7 @@ from app.utils.synthesis_prompt import SCOPE_CLASSIFIER_PROMPT, TASK_HEADER, COR
 from app.utils.citations import build_citation_index, build_sources, CitationStyle, FORMATTERS, resolve_answer_citations, remove_citations_inside_text 
 from app.utils.heuristics import determine_retry_reason
 from app.utils.evidence_analysis import aggregate_evidence, extract_sentence_paper_ids, compute_evidence_metrics, get_debug_info
-from app.utils.confidence import determine_grounding_status, compute_confidence
+from app.utils.confidence import determine_grounding, compute_confidence
 
 
 app = FastAPI(
@@ -57,8 +57,8 @@ def query_endpoint(request: QueryRequest, req: Request):
     synthesizer = req.app.state.synthesizer
     
     pipeline_status = "success"
-    evidence = "absent"
-    grounding = "not_applicable"
+    evidence_structure = "absent"
+    grounding_quality = "not_applicable"
 
     #
     # --- Zero-shot classification of scope---
@@ -67,9 +67,9 @@ def query_endpoint(request: QueryRequest, req: Request):
         pipeline_status = "out_of_scope"
         limitations = ["The question cannot be answered from the available sources."]
         meta = {"scope_decision": "out_of_scope"}
-        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        score, label, explanation = compute_confidence(pipeline_status, evidence_structure, grounding_quality)
         confidence = Confidence(score=score, label=label, explanation=explanation)
-        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
+        return build_response(request.question, pipeline_status, evidence_structure, grounding_quality, limitations, meta=meta, confidence=confidence)
 
     #
     # --- Retrieval ---
@@ -84,9 +84,9 @@ def query_endpoint(request: QueryRequest, req: Request):
         pipeline_status = "retrieval_failed"
         limitations = ["No documents could be retrieved for this question."]
         meta={"top_k": request.top_k_faiss + request.top_k_bm25, "chunks_retrieved": 0}
-        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        score, label, explanation = compute_confidence(pipeline_status, evidence_structure, grounding_quality)
         confidence = Confidence(score=score, label=label, explanation=explanation)
-        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
+        return build_response(request.question, pipeline_status, evidence_structure, grounding_quality, limitations, meta=meta, confidence=confidence)
 
     #
     # --- Reranking & Profiling ---
@@ -95,27 +95,27 @@ def query_endpoint(request: QueryRequest, req: Request):
     profile = relevance_profiler.rerank_and_profile(request.question, retrieved_chunks)
     profiling_time = time.perf_counter() - t1
 
-    evidence = profile["evidence_label"]
+    evidence_structure = profile["evidence_label"]
     
-    if evidence == "absent":
+    if evidence_structure == "absent":
         limitations=["The literature retrieved is topically related, but does not address this question directly."]
         meta={
                 "chunks_requested": request.top_k_faiss + request.top_k_bm25,
                 "chunks_retrieved": len(retrieved_chunks),
                 "relevance_metrics": profile["metrics"]
             }
-        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        score, label, explanation = compute_confidence(pipeline_status, evidence_structure, grounding_quality)
         confidence = Confidence(score=score, label=label, explanation=explanation)
-        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
+        return build_response(request.question, pipeline_status, evidence_structure, grounding_quality, limitations, meta=meta, confidence=confidence)
         
-    elif evidence == "isolated":
+    elif evidence_structure == "isolated":
         limitations=["The retrieved evidence is too narrow and context-specific to support synthesis across studies."]
         meta={
                 "chunks_requested": request.top_k_faiss + request.top_k_bm25,
                 "chunks_retrieved": len(retrieved_chunks),
                 "relevance_metrics": profile["metrics"]
             }
-        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        score, label, explanation = compute_confidence(pipeline_status, evidence_structure, grounding_quality)
         confidence = Confidence(score=score, label=label, explanation=explanation)
 
         strong_hit = relevance_profiler.get_strong_hits(profile["ranked_chunks"])
@@ -125,7 +125,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         strong_hit['year'] = int(sh_metadata['year'])
         strong_hit['journal'] = str(sh_metadata['journal'])
         debug = {"chunks": strong_hit}
-        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence, debug=debug)            
+        return build_response(request.question, pipeline_status, evidence_structure, grounding_quality, limitations, meta=meta, confidence=confidence, debug=debug)            
 
     #
     # --- Synthesis ---
@@ -177,16 +177,16 @@ def query_endpoint(request: QueryRequest, req: Request):
         answer = synthesis_output["answer"]
         
         if not answer:
-            grounding = "not_answered"
+            grounding_quality = "not_answered"
             limitations = synthesis_output.get("limitations") or ["No meaningful answer could be produced from the available literature."]
             meta={
                 "chunks_requested": request.top_k_faiss + request.top_k_bm25,
                 "chunks_retrieved": len(retrieved_chunks),
                 "relevance_metrics": profile["metrics"]
             }
-            score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+            score, label, explanation = compute_confidence(pipeline_status, evidence_structure, grounding_quality)
             confidence = Confidence(score=score, label=label, explanation=explanation)
-            return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
+            return build_response(request.question, pipeline_status, evidence_structure, grounding_quality, limitations, meta=meta, confidence=confidence)
 
         ## Evidence metrics
         sentence_papers = extract_sentence_paper_ids(synthesis_output["answer"], source_lookup)
@@ -200,15 +200,15 @@ def query_endpoint(request: QueryRequest, req: Request):
         aggregation = aggregate_evidence(relevant_chunks, used_chunks_ids)
         metrics = compute_evidence_metrics(aggregation, sentence_papers)
 
-        grounding = determine_grounding_status(metrics)
-        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding, metrics)
+        grounding_score, grounding_quality = determine_grounding(metrics)
+        score, label, explanation = compute_confidence(pipeline_status, evidence_structure, grounding_quality, grounding_score)
         
         if score > best_score:
             best_output = synthesis_output
             best_sentence_papers = sentence_papers
             best_aggregation = aggregation
             best_metrics = metrics
-            best_grounding = grounding
+            best_grounding_quality = grounding_quality
             best_score = score
             best_label = label
             best_explanation = explanation
@@ -238,9 +238,9 @@ def query_endpoint(request: QueryRequest, req: Request):
             "generation_error": True,
             "last_error": str(last_error) if last_error else None
         }
-        score, label, explanation = compute_confidence(pipeline_status, evidence, grounding)
+        score, label, explanation = compute_confidence(pipeline_status, evidence_structure, grounding_quality)
         confidence = Confidence(score=score, label=label, explanation=explanation)
-        return build_response(request.question, pipeline_status, evidence, grounding, limitations, meta=meta, confidence=confidence)
+        return build_response(request.question, pipeline_status, evidence_structure, grounding_quality, limitations, meta=meta, confidence=confidence)
 
     synthesis_time = time.perf_counter() - t2
     total_time = time.perf_counter() - start_time
@@ -262,8 +262,8 @@ def query_endpoint(request: QueryRequest, req: Request):
     return QueryResponse(
         question=request.question,
         pipeline_status = pipeline_status,
-        evidence = evidence,
-        grounding = best_grounding,
+        evidence_structure = evidence_structure,
+        grounding_quality = best_grounding_quality,
         answer=[Sentence(**s) for s in resolved_answer],
         limitations=best_output["limitations"],
         sources=sources,

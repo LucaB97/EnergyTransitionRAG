@@ -13,8 +13,8 @@ def build_response(
     return QueryResponse(
         question=question,
         pipeline_status=pipeline_status,
-        evidence=evidence,
-        grounding=grounding,
+        evidence_structure=evidence,
+        grounding_quality=grounding,
         answer=[],
         limitations=limitations,
         sources=[],

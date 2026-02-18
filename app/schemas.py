@@ -76,7 +76,7 @@ class QueryResponse(BaseModel):
         description="Technical execution status of the pipeline"
     )
     
-    evidence: Literal[
+    evidence_structure: Literal[
         "absent",
         "isolated",
         "weak",
@@ -87,11 +87,14 @@ class QueryResponse(BaseModel):
         description="Structural characterization of retrieved evidence"
     )
 
-    grounding: Literal[
+    grounding_quality: Literal[
         "not_applicable",   # e.g. no synthesis performed
-        "complete",
-        "incomplete",
-        "weak"
+        "not_answered", # the synthesizer abstains
+        "very_weak",
+        "weak",
+        "partial",
+        "strong",
+        "complete"
     ] = Field(
         description="Quality of citation grounding in the synthesized answer"
     )

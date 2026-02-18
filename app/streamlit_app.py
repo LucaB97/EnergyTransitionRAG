@@ -179,9 +179,9 @@ if data:
         # ---------------------------------------------------------------------
         # Evidence handling
         # ---------------------------------------------------------------------
-        evidence = data.get("evidence", "")
+        evidence_structure = data.get("evidence_structure", "")
 
-        if evidence == "absent" or evidence == "isolated":
+        if evidence_structure == "absent" or evidence_structure == "isolated":
             show_limitations(data, level="warning")
             show_metadata(data)
 
@@ -205,9 +205,9 @@ if data:
         # ---------------------------------------------------------------------
         # Reason handling
         # ---------------------------------------------------------------------
-        grounding = data.get("grounding", "")
+        grounding_quality = data.get("grounding_quality", "")
 
-        if grounding == "not_answered":
+        if grounding_quality == "not_answered":
             show_limitations(data, level="warning")
             show_metadata(data)
             st.stop()

@@ -1,56 +1,59 @@
-def determine_grounding_status(metrics):
+def determine_grounding(metrics):
+
     used_papers = metrics.get("used_papers", 0)
-    paper_dominance = metrics.get("paper_dominance", 1.0)
-    multi_source_ratio = metrics.get("multi_source_sentence_ratio", 0.0)
+    dominance = metrics.get("paper_dominance", 1.0)
+    multi_ratio = metrics.get("multi_source_sentence_ratio", 0.0)
 
     if used_papers == 0:
-        return "not_answered"
+        return 0.0, "not_answered"
+    
+    if used_papers >= 3:
+        base = 0.6
+    elif used_papers == 2:
+        base = 0.5
+    else:
+        base = 0.35
 
-    if used_papers < 2:
-        return "weak"
+    dominance_penalty = max(0, dominance - 0.5) * 0.5
+    corroboration_bonus = multi_ratio * 0.35
 
-    if paper_dominance > 0.7:
-        return "weak"
+    score = base + corroboration_bonus - dominance_penalty
+    score = max(0.05, min(0.9, score))
+    
+    if score >= 0.85:
+        label = "complete" #explicit corroboration + balance
+    elif score >= 0.65:
+        label = "strong" #balanced multi-source
+    elif score >= 0.45:
+        label = "partial" #multi-source but low corroboration
+    elif score >= 0.25:
+        label = "weak" #mono or imbalanced multi
+    else:
+        label = "very_weak" #mono-source, dominant
 
-    if multi_source_ratio == 0:
-        return "weak"
-
-    return "complete"
+    return score, label
 
 
 
-def compute_confidence(pipeline_status, evidence_status, grounding_status, metrics=None):
+def compute_confidence(pipeline_status, evidence_structure, grounding_quality, grounding_score=None):
 
-    if pipeline_status != "success":
-        return 0.0, "None", ["Technical failure during processing."]
+    if pipeline_status != "success" or grounding_quality == "not_applicable" or grounding_score is None:
+        return 0.0, "None", ["Not applicable"]
 
     structural_base = {
         "absent": 0.0,
-        "isolated": 0.2,
-        "weak": 0.4,
+        "isolated": 0.25,
+        "weak": 0.45,
         "fragmented": 0.6,
-        "thematic": 0.8,
-        "robust": 0.95
-    }[evidence_status]
+        "thematic": 0.75,
+        "robust": 0.85
+    }[evidence_structure]
 
-    grounding_factor = {
-        "complete": 1.0,
-        "weak": 0.8,
-        "not_answered": 0.6,
-        "not_applicable": 1.0
-    }[grounding_status]
-
-    # Optional small refinement from metrics
-    multi_source_ratio = metrics.get("multi_source_sentence_ratio", 0.0)
-
-    corroboration_bonus = 0.05 if multi_source_ratio > 0.6 else 0.0
-
-    score = structural_base * grounding_factor
-    score += corroboration_bonus
-    score = max(0.0, min(1.0, round(score, 2)))
+    score = min(structural_base, grounding_score)
+    score = max(0.0, min(0.9, score))
 
     # Label mapping
-    if score >= 0.85:
+    if score > 0.80:
         label = "Very High"
     elif score >= 0.7:
         label = "High"
@@ -64,8 +67,8 @@ def compute_confidence(pipeline_status, evidence_status, grounding_status, metri
         label = "None"
 
     explanation = [
-        f"evidence structure: {evidence_status}",
-        f"grounding quality: {grounding_status}"
+        f"evidence structure: {evidence_structure}",
+        f"grounding quality: {grounding_quality}"
     ]
 
     return score, label, explanation
