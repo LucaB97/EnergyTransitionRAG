@@ -51,14 +51,20 @@ class Source(BaseModel):
 
 
 class AxisProfile(BaseModel):
-    level: Literal["Strong", "Moderate", "Weak"]
-    score: float = Field(ge=0.0, le=1.0)
-    explanation: List[str]
+    level: Literal["Strong", "Moderate", "Weak", "Not_applicable"]
+    score: Optional[float] = Field(ge=0.0, le=1.0)
+    explanation: List[str] = Field(default_factory=list)
 
 
 class ConfidenceProfile(BaseModel):
-    evidence: AxisProfile = Field(description="Evidence structure strength")
-    grounding: AxisProfile = Field(description="Grounding quality of the synthesis")
+    evidence: AxisProfile = Field(
+        default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
+        description="Evidence structure strength"
+    )
+    grounding: AxisProfile = Field(
+        default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
+        description="Grounding quality of the synthesis"
+    )
     status: Literal["Success", "Not applicable"]
     reason: Optional[str] = Field(
         default="",

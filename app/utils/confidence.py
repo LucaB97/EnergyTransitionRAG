@@ -319,8 +319,6 @@ def evaluate_confidence_profile(pipeline_status,
 
     if pipeline_status != "success" or evidence_score is None or grounding_score is None:
         return {
-        "evidence": None,
-        "grounding": None,
         "status": "Not applicable",
         "reason": reason
     }

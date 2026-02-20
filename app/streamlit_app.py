@@ -1,9 +1,9 @@
 import streamlit as st
-import streamlit.components.v1 as components
+# import streamlit.components.v1 as components
 import requests
 
-from utils.citations import CitationStyle, render_sentence_with_inline_citations
-from utils.rendering import show_limitations, show_metadata
+from utils.citations import CitationStyle
+from utils.rendering import render_confidence_profile, render_sentence_with_inline_citations, show_limitations, show_metadata
 from utils.export import export_output
 # ---------------------------------------------------------------------
 # Page config
@@ -216,66 +216,77 @@ if data:
         # ---------------------------------------------------------------------
         # Confidence level
         # ---------------------------------------------------------------------
-            
-        label = data["confidence"]["label"]
-        score = data["confidence"]["score"]
-        explanation = data["confidence"]["explanation"]
+        
+        confidence = data["confidence"]
 
-        score_percent = max(0, min(100, int(score * 100)))
+        if confidence["status"] == "Success":
+            render_confidence_profile(confidence)
+            # render_2d_plot(
+            #     confidence["evidence"]["score"],
+            #     confidence["grounding"]["score"]
+            # )
+            # render_axis_cards(confidence)
 
-        # st.markdown(f"### Confidence: {score:.2f} ({label})")
-        st.subheader("Confidence")
+        # label = data["confidence"]["label"]
+        # score = data["confidence"]["score"]
+        # explanation = data["confidence"]["explanation"]
 
-        components.html(f"""
-        <div style="margin-top: 10px; margin-bottom: 10px;">
-            <div style="height: 8px;
-                        background: linear-gradient(to right, #374151, #3b82f6);
-                        border-radius: 6px;
-                        position: relative;">
+        # score_percent = max(0, min(100, int(score * 100)))
+
+        # # st.markdown(f"### Confidence: {score:.2f} ({label})")
+        # st.subheader("Confidence")
+
+        # components.html(f"""
+        # <div style="margin-top: 10px; margin-bottom: 10px;">
+        #     <div style="height: 8px;
+        #                 background: linear-gradient(to right, #374151, #3b82f6);
+        #                 border-radius: 6px;
+        #                 position: relative;">
                 
-                <div style="position: absolute;
-                            left: {score_percent}%;
-                            top: -5px;
-                            width: 16px;
-                            height: 16px;
-                            background-color: #1f2937;
-                            border-radius: 50%;
-                            transform: translateX(-50%);
-                            box-shadow: 0 0 0 2px white;">
-                </div>
-            </div>
+        #         <div style="position: absolute;
+        #                     left: {score_percent}%;
+        #                     top: -5px;
+        #                     width: 16px;
+        #                     height: 16px;
+        #                     background-color: #1f2937;
+        #                     border-radius: 50%;
+        #                     transform: translateX(-50%);
+        #                     box-shadow: 0 0 0 2px white;">
+        #         </div>
+        #     </div>
 
-            <div style="display: flex;
-                        justify-content: space-between;
-                        font-size: 0.8rem;
-                        color: #9ca3af;
-                        margin-top: 6px;">
-                <span>Very Low</span>
-                <span>Moderate</span>
-                <span>Very High</span>
-            </div>
-        </div>
-        """, height=60)
+        #     <div style="display: flex;
+        #                 justify-content: space-between;
+        #                 font-size: 0.8rem;
+        #                 color: #9ca3af;
+        #                 margin-top: 6px;">
+        #         <span>Very Low</span>
+        #         <span>Moderate</span>
+        #         <span>Very High</span>
+        #     </div>
+        # </div>
+        # """, height=60)
 
 
-        st.caption(
-            "Confidence reflects how well the answer is supported by multiple independent sources."
-        )
+        # st.caption(
+        #     "Confidence reflects how well the answer is supported by multiple independent sources."
+        # )
 
-        with st.expander("Why this confidence level?"):
-            if explanation:
-                for item in explanation:
-                    st.markdown(f"- {item}")
-            else:
-                st.markdown(
-                    "This confidence level reflects an overall assessment of the available evidence."
-                )
+        # with st.expander("Why this confidence level?"):
+        #     if explanation:
+        #         for item in explanation:
+        #             st.markdown(f"- {item}")
+        #     else:
+        #         st.markdown(
+        #             "This confidence level reflects an overall assessment of the available evidence."
+        #         )
 
         # ---------------------------------------------------------------------
         # Synthesized answer (inline citations)
         # ---------------------------------------------------------------------
         citation_style = CitationStyle.NUMERIC
 
+        st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("Synthesized Answer")
 
         for item in data.get("answer", []):
