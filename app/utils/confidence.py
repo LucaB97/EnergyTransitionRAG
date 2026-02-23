@@ -148,32 +148,32 @@ def explain_evidence(flags, max_items=3):
 
     # --- Critical states ---
     if flags.get("absent"):
-        explanations["weaknesses"].append("No sufficiently relevant sources were identified.")
+        explanations["weaknesses"].append("No sufficiently relevant sources were identified")
         return explanations
 
     if flags.get("isolated"):
-        explanations["weaknesses"].append("Support relies on a single highly prominent passage.")
+        explanations["weaknesses"].append("A single highly prominent passage was found")
         return explanations
 
     # --- Weaknesses ---
     if flags.get("single_source_dominance"):
-        explanations["weaknesses"].append("Strong support is concentrated in one source.")
+        explanations["weaknesses"].append("Most highly relevant passages come from the same paper")
 
     if flags.get("low_diversity"):
-        explanations["weaknesses"].append("Few independent sources contribute strong support.")
+        explanations["weaknesses"].append("Highly relevant passages come from few distinct sources")
 
     if flags.get("low_density"):
-        explanations["weaknesses"].append("Only a limited number of highly relevant passages were found.")
+        explanations["weaknesses"].append("Only a limited number of highly relevant passages were found")
 
     # --- Strengths ---
     if flags.get("high_density"):
-        explanations["strengths"].append("Numerous highly relevant passages reinforce the claim.")
+        explanations["strengths"].append("Several retrieved passages are highly relevant")
 
     if flags.get("multiple_strong_sources"):
-        explanations["strengths"].append("Multiple independent sources strongly support the claim.")
+        explanations["strengths"].append("Highly relevant passages come from multiple independent sources")
 
     if flags.get("well_balanced"):
-        explanations["strengths"].append("Support is well distributed across sources.")
+        explanations["strengths"].append("Highly relevant passages are well distributed across different sources")
 
     # --- Optional: limit items ---
     explanations["weaknesses"] = explanations["weaknesses"][:max_items]
@@ -261,31 +261,31 @@ def explain_grounding(flags, max_items=3):
 
     # --- Critical ---
     if flags.get("no_citations"):
-        explanations["weaknesses"].append("The answer does not cite supporting sources.")
+        explanations["weaknesses"].append("The answer does not cite any sources")
         return explanations
     
     # --- Weaknesses (ordered by severity) ---
     if flags.get("no_corroboration"):
-        explanations["weaknesses"].append("Claims are not corroborated across multiple sources.")
+        explanations["weaknesses"].append("Claims are not corroborated across multiple sources")
 
     elif flags.get("low_corroboration"):
-        explanations["weaknesses"].append("Only limited cross-source corroboration is present.")
+        explanations["weaknesses"].append("Only limited cross-source corroboration is present")
 
     if flags.get("high_source_dominance"):
-        explanations["weaknesses"].append("Most citations come from one dominant source.")
+        explanations["weaknesses"].append("Most citations come from one source")
 
     if flags.get("single_source_reliance"):
-        explanations["weaknesses"].append("The answer relies primarily on a single source.")
+        explanations["weaknesses"].append("The synthesis relies on a single source")
 
     # --- Strengths (simple → sophisticated) ---
     if flags.get("multi_source_grounding"):
-        explanations["strengths"].append("The answer integrates multiple independent sources.")
+        explanations["strengths"].append("The synthesis integrates evidence from multiple independent sources")
 
     if flags.get("balanced_source_usage"):
-        explanations["strengths"].append("Citations are distributed across sources.")
+        explanations["strengths"].append("Citations are fairly distributed across different sources")
 
     if flags.get("cross_source_corroboration"):
-        explanations["strengths"].append("Several claims are supported by multiple sources.")
+        explanations["strengths"].append("Several statements are supported by multiple sources")
 
     # --- Optional: limit items ---
     explanations["weaknesses"] = explanations["weaknesses"][:max_items]

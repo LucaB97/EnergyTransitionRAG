@@ -9,7 +9,7 @@ from utils.indexing import load_faiss
 from utils.retriever import SemanticRetriever, BM25Retriever, HybridRetriever
 from utils.llm_clients import OpenAIClient, HFClient
 from utils.cross_encoder import RelevanceProfiler
-from app.utils.synthesis import QueryScopeClassifier, ResearchSynthesisEngine
+from app.utils.synthesis import QueryScopeClassifier, QueryExpander, ResearchSynthesisEngine
 
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +54,7 @@ def load_system(app, profile: Optional[str] = None):
     scope_classifier = QueryScopeClassifier(llm)
     retriever = HybridRetriever(semantic_retriever, bm25_retriever)
     relevance_profiler = RelevanceProfiler("cross-encoder/ms-marco-MiniLM-L-6-v2")
+    query_expander = QueryExpander(llm)
     synthesizer = ResearchSynthesisEngine(llm, max_attempts=3)
 
     # ---- Attach to app ----
@@ -61,4 +62,5 @@ def load_system(app, profile: Optional[str] = None):
     app.state.scope_classifier = scope_classifier
     app.state.retriever = retriever
     app.state.relevance_profiler = relevance_profiler
+    app.state.query_expander = query_expander
     app.state.synthesizer = synthesizer

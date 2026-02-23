@@ -24,6 +24,20 @@ Question:
 {{QUESTION}}
 """
 
+QUERY_EXPANDER_PROMPT = """
+You reformulate research questions to improve information retrieval in academic databases.
+
+Your goal is to generate one alternative version of the query using related academic terminology while preserving the original meaning and scope.
+
+Do not broaden the topic.
+Do not add new sub-questions.
+Do not provide explanations.
+Output only the rewritten query.
+
+Original query:
+{{QUESTION}}
+"""
+
 TASK_HEADER = """
 You are an expert research assistant specialized in environmental and social impact analysis.
 You synthesize evidence strictly from the provided peer-reviewed academic sources.

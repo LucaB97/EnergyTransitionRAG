@@ -88,8 +88,8 @@ question = st.text_area(
 #     step=5
 # )
 
-top_k_faiss = 30
-top_k_bm25 = 30
+topk_faiss = 30
+topk_bm25 = 30
 
 ask_button = st.button("Ask")
 
@@ -109,53 +109,16 @@ if ask_button:
             try:
                 response = requests.post(
                     API_URL,
-                    json={"question": question, "top_k_faiss": top_k_faiss, "top_k_bm25": top_k_bm25},
+                    json={"question": question, "topk_faiss": topk_faiss, "topk_bm25": topk_bm25},
                     timeout=60,
                 )
                 st.session_state["data"] = response.json()
-            except Exception as e:
-                st.error(f"Backend request failed: {e}")
+            except requests.exceptions.Timeout:
+                st.error("⏳ The request timed out. Please try again.")
                 st.stop()
-            
-            # try:
-            #     response = requests.post(
-            #         API_URL,
-            #         json={
-            #             "question": question,
-            #             "top_k": top_k
-            #         },
-            #         timeout=60,
-            #     )
-            # except requests.exceptions.Timeout:
-            #     st.error(
-            #         "⏳ The request timed out. "
-            #         "Please try again."
-            #     )
-            #     st.stop()
-            # except requests.exceptions.RequestException as e:
-            #     st.error(
-            #         "🚫 Unable to contact the backend service. "
-            #         "Please check that it is running."
-            #     )
-            #     st.stop()
-
-            # # ---- HTTP-level failure (true backend error) ----
-            # if response.status_code != 200:
-            #     st.error(
-            #         "🚫 The backend service encountered an error. "
-            #         "Please try again later."
-            #     )
-            #     st.stop()
-
-            # # ---- Success: parse JSON ----
-            # try:
-            #     st.session_state["data"] = response.json()
-            # except ValueError:
-            #     st.error(
-            #         "🚫 Received an invalid response from the backend."
-            #     )
-            #     st.stop()
-
+            except Exception as e:
+                st.error(f"Backend request failed. Please try again.")
+                st.stop()
 
 data = st.session_state.get("data")
 if data:
