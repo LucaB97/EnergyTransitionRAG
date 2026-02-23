@@ -153,9 +153,9 @@ class HybridRetriever:
         self.semantic = semantic_retriever
         self.bm25 = bm25_retriever
 
-    def search(self, query, top_k_faiss=30, top_k_bm25=30):
-        faiss_results = self.semantic.search(query, top_k_faiss)
-        bm25_results = self.bm25.search(query, top_k_bm25)
+    def search(self, query, topk_faiss=30, topk_bm25=30):
+        faiss_results = self.semantic.search(query, topk_faiss)
+        bm25_results = self.bm25.search(query, topk_bm25)
 
         combined = {}
 

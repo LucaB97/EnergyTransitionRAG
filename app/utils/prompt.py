@@ -24,6 +24,8 @@ Question:
 {{QUESTION}}
 """
 
+
+
 QUERY_EXPANDER_PROMPT = """
 You reformulate research questions to improve information retrieval in academic databases.
 
@@ -37,6 +39,8 @@ Output only the rewritten query.
 Original query:
 {{QUESTION}}
 """
+
+
 
 TASK_HEADER = """
 You are an expert research assistant specialized in environmental and social impact analysis.
@@ -133,24 +137,24 @@ QUESTION:
 
 RETRY_SOURCE_DIVERSITY = """
 RETRY INSTRUCTION:
-The previous synthesis relied heavily on a limited subset of the available sources.
-Re-evaluate the provided evidence and, where supported, incorporate relevant findings from additional independent papers.
-Do not add unsupported claims.
-"""
-
-RETRY_CORROBORATION = """
-RETRY INSTRUCTION:
-Some claims in the previous synthesis were supported by only a single source.
-Where possible, prioritize findings that are corroborated by multiple independent papers.
-If a claim cannot be corroborated, either qualify it or omit it.
-Do not introduce new claims without evidence.
+The previous synthesis relied predominantly on one source, despite multiple strong and relevant papers being available.
+Re-examine the retrieved evidence and ensure that relevant findings from independent papers are incorporated where they meaningfully contribute to the answer.
+Do not introduce unsupported claims or include sources that do not add substantive information.
 """
 
 RETRY_EVIDENCE_UTILIZATION = """
 RETRY INSTRUCTION:
-Several relevant evidence excerpts were not used in the previous synthesis.
-Review the provided sources and ensure that all relevant and non-redundant evidence is considered where appropriate.
-Do not repeat the same findings across sentences.
+The previous synthesis incorporated only a small portion of the retrieved evidence.
+Review the provided excerpts and ensure that all substantively relevant and non-redundant findings are considered in the answer.
+Prioritize clarity and conciseness; do not repeat similar findings across sentences.
+"""
+
+RETRY_CORROBORATION = """
+RETRY INSTRUCTION:
+The previous synthesis cited multiple papers but did not integrate their findings within individual claims.
+Where the evidence allows, synthesize overlapping or convergent findings from independent papers into unified statements.
+If a claim is supported by only one source, clearly qualify it rather than overstating its generality.
+Do not introduce new claims without evidence.
 """
 
 RETRY_PROMPTS = {
@@ -158,14 +162,3 @@ RETRY_PROMPTS = {
     "corroboration": RETRY_CORROBORATION,
     "evidence_utilization": RETRY_EVIDENCE_UTILIZATION,
 }
-
-
-# RETRY = """
-# RETRY INSTRUCTION:
-# The previous synthesis relied heavily on a limited subset of the available sources.
-# Re-evaluate the provided evidence and, where supported, incorporate relevant findings from additional independent papers. Do not add unsupported claims.
-# """
-
-# BASIC_SYNTHESIS_PROMPT = TASK_HEADER + CORE_SYNTHESIS_INSTRUCTIONS
-
-# RETRY_SYNTHESIS_PROMPT = TASK_HEADER + RETRY + CORE_SYNTHESIS_INSTRUCTIONS

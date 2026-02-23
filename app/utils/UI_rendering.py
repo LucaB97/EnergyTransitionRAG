@@ -139,3 +139,10 @@ def show_metadata(data):
         st.markdown("<br>", unsafe_allow_html=True)
         with st.expander("Metadata", expanded=False):
             st.json(data.get("meta", {}))
+
+
+### Debug
+
+def show_debug_info(data):
+    debug = data.get("debug")
+    

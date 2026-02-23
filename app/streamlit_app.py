@@ -3,7 +3,7 @@ import streamlit as st
 import requests
 
 from utils.citations import CitationStyle
-from utils.rendering import render_confidence_profile, render_sentence_with_inline_citations, show_limitations, show_metadata
+from utils.UI_rendering import render_confidence_profile, render_sentence_with_inline_citations, show_limitations, show_metadata
 from utils.export import export_output
 # ---------------------------------------------------------------------
 # Page config
