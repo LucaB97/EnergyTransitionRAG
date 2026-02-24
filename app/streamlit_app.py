@@ -142,48 +142,37 @@ if data:
         # ---------------------------------------------------------------------
         # Evidence handling
         # ---------------------------------------------------------------------
-        evidence_structure = data.get("evidence_structure", "")
-
-        if evidence_structure == "absent" or evidence_structure == "isolated":
-            show_limitations(data, level="warning")
-            show_metadata(data)
-
-            debug = data.get("debug")
-            with st.sidebar:
-                show_debug = st.checkbox("Show relevant evidence", value=False)
-            
-            if show_debug and debug:
-                chunks = debug.get("chunks", [])
-                if chunks:
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    for chunk in chunks:
-                        st.markdown("---")
-                        st.markdown(f"**📄 {chunk['title']}**")
-                        st.caption(f"{chunk['authors']} ({chunk['year']})")
-                        st.text_area("Excerpt", chunk['text'], height=120)
-                else:
-                    st.info("No information available.")
-            st.stop()
-
-        # ---------------------------------------------------------------------
-        # Reason handling
-        # ---------------------------------------------------------------------
-        grounding_quality = data.get("grounding_quality", "")
-
-        if grounding_quality == "not_answered":
-            show_limitations(data, level="warning")
-            show_metadata(data)
-            st.stop()
-
-
-        # ---------------------------------------------------------------------
-        # Confidence level
-        # ---------------------------------------------------------------------
-        
         confidence = data["confidence"]
 
-        if confidence["status"] == "Success":
-            render_confidence_profile(confidence)
+        if confidence["status"] == "Not applicable":
+            show_limitations(data, level="warning")
+            show_metadata(data)
+            st.stop()
+
+        # evidence_structure = data.get("evidence_structure", "")
+
+        # if evidence_structure == "absent" or evidence_structure == "isolated":
+            
+
+        #     debug = data.get("debug")
+        #     with st.sidebar:
+        #         show_debug = st.checkbox("Show relevant evidence", value=False)
+            
+        #     if show_debug and debug:
+        #         chunks = debug.get("chunks", [])
+        #         if chunks:
+        #             st.markdown("<br>", unsafe_allow_html=True)
+        #             for chunk in chunks:
+        #                 st.markdown("---")
+        #                 st.markdown(f"**📄 {chunk['title']}**")
+        #                 st.caption(f"{chunk['authors']} ({chunk['year']})")
+        #                 st.text_area("Excerpt", chunk['text'], height=120)
+        #         else:
+        #             st.info("No information available.")
+        #     st.stop()
+
+
+        render_confidence_profile(confidence)
 
         # ---------------------------------------------------------------------
         # Synthesized answer (inline citations)
@@ -242,19 +231,19 @@ if data:
         # ---------------------------------------------------------------------
         # 📊 Evidence Metrics
         # ---------------------------------------------------------------------
-        metrics = data.get("evidence_metrics")
+        metrics = data.get("grounding_metrics")
 
         if metrics is not None:
-            with st.expander("Evidence Metrics", expanded=False):
+            with st.expander("Grounding Metrics", expanded=False):
                 
                 if not metrics:
-                    st.info("Evidence metrics are unavailable for this response.")
+                    st.info("Grounding metrics are unavailable for this response.")
                 
                 else:
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
-                        st.metric("Retrieved chunks", metrics.get('retrieved_chunks', 0))
+                        st.metric("Available chunks", metrics.get('available_chunks', 0))
                         st.metric("Used chunks", metrics.get('used_chunks', 0))
                         st.metric(
                             "Chunk coverage",
@@ -262,7 +251,7 @@ if data:
                         )
 
                     with col2:
-                        st.metric("Retrieved papers", metrics.get('retrieved_papers', 0))
+                        st.metric("Available papers", metrics.get('available_papers', 0))
                         st.metric("Unique papers used", metrics.get('used_papers', 0))
                         st.metric("Paper dominance", metrics.get('paper_dominance', 0))
 

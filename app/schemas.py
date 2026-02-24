@@ -70,7 +70,26 @@ class ConfidenceProfile(BaseModel):
         default="",
         description="Reason for \"Not applicable\" status"
     )
+    
+ 
+class GroundingMetrics(BaseModel):
+    available_chunks: int
+    used_chunks: int
+    chunk_coverage: float
 
+    available_papers: int
+    used_papers: int
+    paper_dominance: float
+
+    avg_citations_per_sentence: float
+    multi_source_sentence_ratio: float
+
+
+class AnalysisTrace(BaseModel):
+    query_expansion: Optional[List] = None
+    strong_hit_chunks: Optional[List] = None
+    chunks_provided_to_synthesizer: Optional[List[Dict]] = None
+    paper_stats: Optional[List[Dict]] = None 
 
 
 class QueryResponse(BaseModel):
@@ -102,18 +121,14 @@ class QueryResponse(BaseModel):
         description="Additional metadata about retrieval and synthesis"
     )
     
-    evidence_metrics: Optional[Dict] = Field(
-        default=None,
-        description="Evidence quality metrics; None if synthesis failed"
-    )
+    evidence_structure: Optional[Dict] = None
+    
+    grounding_metrics: Optional[GroundingMetrics] = None
     
     confidence: Optional[ConfidenceProfile] = Field(
         default=None,
         description="Overall confidence in the synthesized answer; None if pipeline failed"
     )
     
-    debug: Dict = Field(
-        default_factory=dict,
-        description="Debug info"
-    )
+    trace: Optional[AnalysisTrace] = None
     

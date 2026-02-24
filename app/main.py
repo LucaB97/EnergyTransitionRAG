@@ -10,7 +10,7 @@ from app.helpers import deduplicate
 from app.utils.prompt import SCOPE_CLASSIFIER_PROMPT, QUERY_EXPANDER_PROMPT, TASK_HEADER, CORE_SYNTHESIS_INSTRUCTIONS, RETRY_PROMPTS
 from app.utils.citations import build_citation_index, build_sources, CitationStyle, FORMATTERS, resolve_answer_citations, remove_citations_inside_text 
 from app.utils.heuristics import determine_retry_reason
-from app.utils.evidence_analysis import aggregate_evidence, extract_sentence_paper_ids, compute_evidence_metrics, get_debug_info
+from app.utils.evidence_analysis import aggregate_evidence, extract_sentence_paper_ids, compute_grounding_metrics
 from app.utils.confidence import evaluate_evidence_structure, evaluate_grounding_quality, evaluate_confidence_profile
 
 
@@ -88,7 +88,8 @@ def query_endpoint(request: QueryRequest, req: Request):
         pipeline_status = "retrieval_failed"
         limitations = ["No documents could be retrieved for this question"]
         meta={"topk": topk_faiss + topk_bm25, "chunks_retrieved": 0}
-        return build_response(query, pipeline_status, limitations, meta=meta)
+        confidence_profile = evaluate_confidence_profile(pipeline_status, reason="Early termination because no evidence was retrieved")
+        return build_response(query, pipeline_status, limitations, meta=meta, confidence=confidence_profile)
 
     #
     # --- Reranking & Profiling ---
@@ -119,8 +120,10 @@ def query_endpoint(request: QueryRequest, req: Request):
             pipeline_status = "retrieval_failed"
             limitations = ["No documents could be retrieved for this question"]
             meta={"topk": topk_faiss + topk_bm25, "chunks_retrieved": 0, "retrieval_retry": retrieval_retry}
-            debug={"expanded_query": expanded_query}
-            return build_response(query, pipeline_status, limitations, meta=meta, debug=debug)
+            confidence_profile = evaluate_confidence_profile(pipeline_status, reason="Early termination because no evidence was retrieved")
+            trace={"query_expansion": expanded_query}
+            return build_response(query, pipeline_status, limitations, meta=meta, 
+                                  confidence=confidence_profile, trace=trace)
         
         retrieved_chunks = deduplicate(retrieved_chunks)
 
@@ -144,8 +147,9 @@ def query_endpoint(request: QueryRequest, req: Request):
             }
         confidence_profile = evaluate_confidence_profile(pipeline_status, evidence_score, evidence_flags, 
                                                          reason="Grounding score is absent because synthesis was not performed")
-        debug={"expanded_query": expanded_query}
-        return build_response(query, pipeline_status, limitations, meta=meta, confidence=confidence_profile, debug=debug)
+        trace={"query_expansion": expanded_query}
+        return build_response(query, pipeline_status, limitations, meta=meta, 
+                              evidence_structure=evidence_meta, confidence=confidence_profile, trace=trace)
         
 
     for chunk in strong_chunks:
@@ -162,25 +166,25 @@ def query_endpoint(request: QueryRequest, req: Request):
                 "chunks_requested": request.topk_faiss + request.topk_bm25,
                 "chunks_retrieved": len(retrieved_chunks),
                 "retrieval_retry": retrieval_retry,
-                "evidence_metrics": evidence_meta.pop("strong_hit_chunks")
             }
         confidence_profile = evaluate_confidence_profile(pipeline_status, evidence_score, evidence_flags, 
                                                          reason="Grounding score is absent because synthesis was not performed")
         
-        debug={
-            "relevant_passages": strong_chunks,
-            "expanded_query": expanded_query
+        trace={
+            "query_expansion": expanded_query,
+            "strong_hit_chunks": strong_chunks            
             }
-        return build_response(query, pipeline_status, limitations, meta=meta, confidence=confidence_profile, debug=debug)          
+        return build_response(query, pipeline_status, limitations, meta=meta, 
+                              evidence_structure=evidence_meta, confidence=confidence_profile, trace=trace)          
 
     #
     # --- Synthesis ---
     #    
 
     top_N = 15
-    relevant_chunks = reranked_chunks[:top_N]
+    provided_chunks = reranked_chunks[:top_N]
 
-    for c in relevant_chunks:
+    for c in provided_chunks:
         c_metadata = metadata.loc[c["paper_id"]]
         c['title'] = str(c_metadata['title'])
         c['authors'] = str(c_metadata['authors'])
@@ -191,7 +195,7 @@ def query_endpoint(request: QueryRequest, req: Request):
 
     source_lookup = {
         c["chunk_id"]: c
-        for c in relevant_chunks
+        for c in provided_chunks
     }
 
     max_attempts = 2
@@ -209,11 +213,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         attempt += 1
         
         try:
-            synthesis_output = synthesizer.synthesize(
-                query,
-                relevant_chunks,
-                prompt
-            )
+            synthesis_output = synthesizer.synthesize(query, provided_chunks, prompt)
         except ValueError as e:
             last_error = e
             logger.error("Synthesis failed after retries", exc_info=e)
@@ -223,20 +223,20 @@ def query_endpoint(request: QueryRequest, req: Request):
         answer = synthesis_output["answer"]
         
         if not answer:
-            limitations = synthesis_output.get("limitations") or ["No meaningful answer could be produced from the available literature."]
+            limitations = synthesis_output.get("limitations") or ["No meaningful answer could be produced from the available literature"]
             meta={
                 "chunks_requested": request.topk_faiss + request.topk_bm25,
                 "chunks_retrieved": len(retrieved_chunks),
                 "retrieval_retry": retrieval_retry,
-                "relevance_metrics": evidence_meta
             }
             confidence_profile = evaluate_confidence_profile(pipeline_status, evidence_score, evidence_flags, 
                                                              reason="Grounding score is absent because the synthesizer abstained from synthesis")
             debug={
-            "relevant_passages": strong_chunks,
-            "expanded_query": expanded_query
+            "query_expansion": expanded_query,
+            "strong_hit_chunks": strong_chunks
             }
-            return build_response(query, pipeline_status, limitations, meta=meta, confidence=confidence_profile, debug=debug)   
+            return build_response(query, pipeline_status, limitations, meta=meta, 
+                                  evidence_structure=evidence_meta, confidence=confidence_profile, debug=debug)   
 
         ## Evidence metrics
         sentence_papers = extract_sentence_paper_ids(synthesis_output["answer"], source_lookup)
@@ -247,10 +247,10 @@ def query_endpoint(request: QueryRequest, req: Request):
             for cid in sentence.get("citations", [])
         }
 
-        aggregation = aggregate_evidence(relevant_chunks, used_chunks_ids)
-        metrics = compute_evidence_metrics(aggregation, sentence_papers)
+        aggregation = aggregate_evidence(provided_chunks, used_chunks_ids)
+        grounding_metrics = compute_grounding_metrics(aggregation, sentence_papers)
 
-        grounding_score, grounding_flags = evaluate_grounding_quality(metrics)
+        grounding_score, grounding_flags = evaluate_grounding_quality(grounding_metrics)
         confidence_profile = evaluate_confidence_profile(pipeline_status, evidence_score, evidence_flags, grounding_score, grounding_flags)
         
         score = confidence_profile["grounding"]["score"]
@@ -258,21 +258,21 @@ def query_endpoint(request: QueryRequest, req: Request):
             best_output = synthesis_output
             best_sentence_papers = sentence_papers
             best_aggregation = aggregation
-            best_metrics = metrics
+            best_grounding_metrics = grounding_metrics
             best_confidence = confidence_profile
             best_score = score
 
         # --- Retry decision ---
         if grounding_score < 0.5:
-            retry_reason = determine_retry_reason(metrics, evidence_meta["distinct_strong_sources"])
+            retry_reason = determine_retry_reason(grounding_metrics, evidence_meta["distinct_strong_sources"])
             retry_triggers.append(retry_reason) 
         else:
             retry_reason = None             
 
-        if metrics and retry_reason and attempt < max_attempts:
+        if grounding_metrics and retry_reason and attempt < max_attempts:
             logger.info(
-                "Retrying synthesis due to weak evidence metrics",
-                extra={"metrics": metrics}
+                "Retrying synthesis due to weak grounding",
+                extra={"grounding_metrics": grounding_metrics}
             )
             prompt = TASK_HEADER + RETRY_PROMPTS[retry_reason] + CORE_SYNTHESIS_INSTRUCTIONS
             continue
@@ -290,47 +290,47 @@ def query_endpoint(request: QueryRequest, req: Request):
         }
         confidence_profile = evaluate_confidence_profile(pipeline_status, evidence_score, evidence_flags, 
                                                          reason="Grounding score is absent because the synthesis generation failed")
-        return build_response(query, pipeline_status, limitations, meta=meta, confidence=confidence_profile)  
+        return build_response(query, pipeline_status, limitations, meta=meta, 
+                              evidence_structure=evidence_meta, confidence=confidence_profile)  
 
     synthesis_time = time.perf_counter() - t2
     total_time = time.perf_counter() - start_time
 
-    ## Build list of sources
-    citation_index = build_citation_index(best_sentence_papers)
-    sources = build_sources(citation_index, source_lookup)
-    debug = get_debug_info(best_aggregation)
-
     #
     # --- Output preparation ---
     #
-    
+    meta={
+        "chunks_requested": request.topk_faiss + request.topk_bm25,
+        "chunks_retrieved": len(retrieved_chunks),
+        "retrieval_retry": retrieval_retry,
+        "retrieval_time_sec": round(retrieval_time, 3),
+        "profiling_time_sec": round(profiling_time, 3),
+        "synthesis_time_sec": round(synthesis_time, 3),
+        "total_time_sec": round(total_time, 3),
+        "synthesis_retry": {
+            "attempted": attempt>1,
+            "total_attempts": attempt,
+            "retry_triggers": retry_triggers
+        }
+    }
+
+    citation_index = build_citation_index(best_sentence_papers)
+    sources = build_sources(citation_index, source_lookup)
+
     style = CitationStyle.NUMERIC
     resolved_answer = resolve_answer_citations(best_output["answer"], source_lookup, citation_index, FORMATTERS[style])
-
     resolved_answer = remove_citations_inside_text(resolved_answer) ## remove references from synthesis text
 
-    return QueryResponse(
-        question=query,
-        pipeline_status = pipeline_status,
-        answer=[Sentence(**s) for s in resolved_answer],
-        limitations=best_output["limitations"],
-        sources=sources,
-        meta={
-            "chunks_requested": request.topk_faiss + request.topk_bm25,
-            "chunks_retrieved": len(retrieved_chunks),
-            "retrieval_retry": retrieval_retry,
-            "relevance_metrics": evidence_meta,
-            "retrieval_time_sec": round(retrieval_time, 3),
-            "profiling_time_sec": round(profiling_time, 3),
-            "synthesis_time_sec": round(synthesis_time, 3),
-            "total_time_sec": round(total_time, 3),
-            "synthesis_retry": {
-                "attempted": attempt>1,
-                "total_attempts": attempt,
-                "retry_trigger": retry_triggers
-            }
-        },
-        evidence_metrics=best_metrics,
-        confidence = best_confidence,
-        debug=debug
-    )
+    trace={
+        "query_expansion": expanded_query,
+        "strong_hit_chunks": strong_chunks,
+        "chunks_provided_to_synthesizer": best_aggregation["chunks"],
+        "paper_stats": [
+            {"paper_id": pid, **stats}
+            for pid, stats in best_aggregation["paper_stats"].items()
+        ]
+    }
+
+    return build_response(query, pipeline_status, limitations=best_output["limitations"], answer=[Sentence(**s) for s in resolved_answer], 
+                          sources=sources, meta=meta, evidence_structure=evidence_meta, grounding_metrics=best_grounding_metrics,
+                          confidence=best_confidence, trace=trace)

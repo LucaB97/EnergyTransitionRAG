@@ -42,7 +42,7 @@ def aggregate_evidence(relevant_chunks, used_chunk_ids):
 
     return {    #<--aggregation
         "chunks": chunks,
-        "paper_stats": paper_stats,
+        "paper_stats": dict(paper_stats),
     }
 
 
@@ -68,7 +68,7 @@ def extract_sentence_paper_ids(answer, source_lookup):
 
 
 
-def compute_evidence_metrics(aggregation, sentence_papers):
+def compute_grounding_metrics(aggregation, sentence_papers):
     paper_stats = aggregation["paper_stats"]
 
     retrieved_chunks = sum(
@@ -108,11 +108,11 @@ def compute_evidence_metrics(aggregation, sentence_papers):
     )
 
     return {
-        "retrieved_chunks": retrieved_chunks,
+        "available_chunks": retrieved_chunks,
         "used_chunks": used_chunks,
         "chunk_coverage": used_chunks / retrieved_chunks if retrieved_chunks else 0.0,
 
-        "retrieved_papers": retrieved_papers,
+        "available_papers": retrieved_papers,
         "used_papers": used_papers,
         "paper_coverage": (
             used_papers / retrieved_papers if retrieved_papers else 0.0
@@ -121,15 +121,4 @@ def compute_evidence_metrics(aggregation, sentence_papers):
         "paper_dominance": round(paper_dominance, 3),
         "avg_citations_per_sentence": round(avg_citations_per_sentence, 2),
         "multi_source_sentence_ratio": round(multi_source_ratio, 2),
-    }
-
-
-
-def get_debug_info(aggregation):
-    return {
-        "chunks": aggregation["chunks"],
-        "papers": [
-            {"paper_id": pid, **stats}
-            for pid, stats in aggregation["paper_stats"].items()
-        ]
     }
