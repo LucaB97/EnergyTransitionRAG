@@ -20,13 +20,13 @@ def needs_retry(evidence_flags):
     return False 
 
 
-def assign_limitations(label):
+def assign_limitations(weak_semantic_match=False, absent=False, isolated=False):
     
-    if label=="weak_semantic_match":
+    if weak_semantic_match:
         return ["The literature does not address this question directly"]
     
-    if label=="absent":
+    if absent:
         return ["No sufficiently relevant evidence was identified"]
     
-    if label=="isolated":
+    if isolated:
         ["The retrieved evidence is too narrow and context-specific to support synthesis across studies"]

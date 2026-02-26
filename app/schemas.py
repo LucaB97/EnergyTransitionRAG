@@ -57,6 +57,10 @@ class AxisProfile(BaseModel):
 
 
 class ConfidenceProfile(BaseModel):
+    semantic: AxisProfile = Field(
+        default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
+        description="Semantic alignment of evidence to query"
+    )
     evidence: AxisProfile = Field(
         default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
         description="Evidence structure strength"

@@ -1,8 +1,7 @@
 import numpy as np
 
-
-
-def evaluate_evidence_structure(chunks, floor=0.25, ideal_max=5.0, semantic_threshold=0.25):
+def evaluate_evidence_quality(chunks, floor=0.0, ideal_max=3.0, top_N=15,
+                                weak_semantic_threshold=0.3, limited_semantic_threshold=0.5, moderate_semantic_threshold=0.75):
     """
     Evaluate the structural quality of retrieved evidence.
 
@@ -24,7 +23,10 @@ def evaluate_evidence_structure(chunks, floor=0.25, ideal_max=5.0, semantic_thre
 
     Returns
     -------
-    evidence_quality : float
+    semantic_alignment : float
+        Continuous evidence structure score in [0, 1].
+
+    evidence_structure : float
         Continuous evidence structure score in [0, 1].
 
     flags : dict
@@ -39,7 +41,7 @@ def evaluate_evidence_structure(chunks, floor=0.25, ideal_max=5.0, semantic_thre
     """
 
     if not chunks:
-        return None, None, None, None
+        return None, None, None, None, None
 
     scores = np.array([c["final_score"] for c in chunks])
     paper_ids = [c["paper_id"] for c in chunks]
@@ -77,8 +79,12 @@ def evaluate_evidence_structure(chunks, floor=0.25, ideal_max=5.0, semantic_thre
     # 1. Semantic strength (0..1)
     # --------------------------
     max_norm = min(max_score / ideal_max, 1.0)
-    mean_norm = max(0.0, min(1.0, (mean_score - floor) / (ideal_max - floor)))
-    semantic_strength = 0.7 * max_norm + 0.3 * mean_norm
+    
+    top_scores = sorted(scores, reverse=True)[:top_N]
+    mean_score_topN = sum(top_scores) / len(top_scores)
+    mean_norm = max(0.0, min(1.0, (mean_score_topN) / (ideal_max)))
+    
+    semantic_alignment = 0.7 * max_norm + 0.3 * mean_norm
 
     # --------------------------
     # 2. Evidence structure metrics
@@ -90,16 +96,16 @@ def evaluate_evidence_structure(chunks, floor=0.25, ideal_max=5.0, semantic_thre
     diversity_score = min(distinct_strong_sources / 3.0, 1.0)
     balance_score = 1.0 - dominance_ratio
 
-    structure_score = 0.4 * density_score + 0.4 * diversity_score + 0.2 * balance_score
-    structure_score = max(0.0, min(1.0, structure_score))
+    evidence_structure = 0.4 * density_score + 0.4 * diversity_score + 0.2 * balance_score
+    evidence_structure = max(0.0, min(1.0, evidence_structure))
 
     # --------------------------
     # 2. Evidence quality
     # --------------------------
-    evidence_quality = structure_score * semantic_strength
-
     flags = {
-        "weak_semantic_match": semantic_strength < semantic_threshold,
+        "weak_semantic_match": semantic_alignment < weak_semantic_threshold,
+        "limited_semantic_match": semantic_alignment < limited_semantic_threshold,
+        "moderate_semantic_match": semantic_alignment < moderate_semantic_threshold,
         "absent": max_score < floor,
         "isolated": strong_hits == 1 and max_z > 2,
         "single_source_dominance": strong_hits >= 5 and distinct_strong_sources == 1,
@@ -111,19 +117,48 @@ def evaluate_evidence_structure(chunks, floor=0.25, ideal_max=5.0, semantic_thre
     }
 
     metrics = {
-        "mean_score": round(mean_score,2),
-        "std_score": round(std_score,2),
+        "mean_score_global": round(mean_score,2),
+        "std_score_global": round(std_score,2),
         "max_score": round(max_score,2),
+        f"mean_score_top{top_N}": round(mean_score_topN,2),
+        "moderate_hits": pure_moderate_hits,
         "strong_hits": strong_hits,
-        "moderate_hits": moderate_hits,
         "distinct_strong_sources": distinct_strong_sources,
         "dominance_ratio": round(dominance_ratio,2) if not flags["absent"] else None
     }
 
     strong_hit_chunks = [chunks[i] for i in strong_indices]
 
-    return evidence_quality, flags, metrics, strong_hit_chunks
+    return semantic_alignment, evidence_structure, flags, metrics, strong_hit_chunks
     
+
+
+def explain_semantic(flags):
+    """
+    Generate severity-aware explanations for semantics alignment of evidence to query
+    """
+    
+    explanations = {
+        "signals": []
+    }
+
+    # --- Critical states ---
+    if flags.get("weak_semantic_match"):
+        explanations["signals"].append("The literature does not address this question directly")
+        return explanations
+
+    if flags.get("limited_semantic_match"):
+        explanations["signals"].append("Semantic alignment across retrieved passages is uneven")
+        return explanations
+
+    # --- Positive / strengths ---
+    if flags.get("moderate_semantic_match"):
+        explanations["signals"].append("Several retrieved passages are reasonably relevant to the query")
+        return explanations
+    
+    explanations["signals"].append("Retrieved passages closely align with the query")
+
+    return explanations
 
 
 def explain_evidence(flags, max_items=3):
@@ -136,10 +171,7 @@ def explain_evidence(flags, max_items=3):
         "strengths": []
     }
 
-    # --- Critical states ---
-    if flags.get("weak_semantic_match"):
-        explanations["weaknesses"].append("The literature does not address this question directly")
-
+    # --- Critical states ---    
     if flags.get("absent"):
         explanations["weaknesses"].append("No sufficiently relevant evidence was identified")
         return explanations
@@ -289,18 +321,36 @@ def explain_grounding(flags, max_items=3):
 
 
 def evaluate_confidence_profile(pipeline_status, 
-                                evidence_score=None, evidence_flags=None, 
+                                semantic_score=None, evidence_score=None, evidence_flags=None, 
                                 grounding_score=None, grounding_flags=None,
                                 reason=None):
+    """
+    Compute a multi-axis confidence profile: semantic alignment, evidence structure, grounding quality.
+    Each axis gets a score (0-1), a level (Weak/Moderate/Strong), and optional explanations.
+    """
 
-
-    if pipeline_status != "success" or evidence_score is None or grounding_score is None:
+    if pipeline_status != "success" or semantic_score is None or evidence_score is None or grounding_score is None:
         return {
-        "status": "Not applicable",
-        "reason": reason
+            "status": "Not applicable",
+            "reason": reason
+        }
+
+    # --- Semantic alignment ---
+    if semantic_score >= 0.75:
+        semantic_level = "Strong"
+    elif semantic_score >= 0.5:
+        semantic_level = "Moderate"
+    else:
+        semantic_level = "Weak"
+
+    semantic_alignment = {
+        "level": semantic_level,
+        "score": semantic_score,
+        "explanation": explain_semantic(evidence_flags) if evidence_flags else []
     }
 
 
+    # --- Evidence structure ---
     if evidence_score >= 0.75:
         evidence_level = "Strong"
     elif evidence_score >= 0.5:
@@ -308,27 +358,33 @@ def evaluate_confidence_profile(pipeline_status,
     else:
         evidence_level = "Weak"
 
-    evidence_strength = {
+    evidence_structure = {
         "level": evidence_level,
         "score": evidence_score,
-        "explanation": explain_evidence(evidence_flags) if evidence_flags is not None else []
+        "explanation": explain_evidence(evidence_flags) if evidence_flags else []
     }
 
+
+    # --- Grounding quality ---
     if grounding_score >= 0.75:
         grounding_level = "Strong"
     elif grounding_score >= 0.5:
         grounding_level = "Moderate"
     else:
-        grounding_level = "Weak"    
+        grounding_level = "Weak"
 
     grounding_quality = {
         "level": grounding_level,
         "score": grounding_score,
-        "explanation": explain_grounding(grounding_flags) if grounding_flags is not None else []
+        "explanation": explain_grounding(grounding_flags) if grounding_flags else []
     }
 
-    return {
-        "evidence": evidence_strength,
+    # --- Assemble ---
+    profile = {
+        "semantic": semantic_alignment,
+        "evidence": evidence_structure,
         "grounding": grounding_quality,
-        "status": "Success"
+        "status": "Success",
     }
+
+    return profile

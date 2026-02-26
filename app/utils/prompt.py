@@ -169,7 +169,7 @@ Do not introduce new claims without evidence.
 """
 
 RETRY_PROMPTS = {
-    "source_diversity": RETRY_SOURCE_DIVERSITY,
-    "corroboration": RETRY_CORROBORATION,
-    "evidence_utilization": RETRY_EVIDENCE_UTILIZATION,
+    "source_dominance": RETRY_SOURCE_DIVERSITY,
+    "no_corroboration": RETRY_CORROBORATION,
+    "low_evidence_usage": RETRY_EVIDENCE_UTILIZATION,
 }

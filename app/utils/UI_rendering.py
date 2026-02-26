@@ -13,6 +13,7 @@ def render_confidence_profile(confidence):
         "It does not assess factual correctness."
     )
     
+    semantic = confidence["semantic"]
     evidence = confidence["evidence"]
     grounding = confidence["grounding"]
 
@@ -49,10 +50,28 @@ def render_confidence_profile(confidence):
     </style>
     """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2, gap="large")
+    col1, col2, col3 = st.columns(3, gap="large")
 
-    # ---- Evidence ----
+    # ---- Evidence semantics----
     with col1:
+        st.markdown(f"""
+        <div class="confidence-metric">
+            <div class="metric-label">Semantic alignment</div>
+            <div class="metric-value">{semantic['score']:.2f}</div>
+            <div class="confidence-level"
+                 style="color:{level_colors[semantic['level']]}">
+                 {semantic['level']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.expander("Why this score?"):
+            if semantic["explanation"]:
+                for bullet in semantic["explanation"]:
+                    st.markdown(f"{bullet}")
+
+    # ---- Evidence distribution----
+    with col2:
         st.markdown(f"""
         <div class="confidence-metric">
             <div class="metric-label">Evidence structure</div>
@@ -75,7 +94,7 @@ def render_confidence_profile(confidence):
                     st.markdown(f"- {bullet}")
 
     # ---- Grounding ----
-    with col2:
+    with col3:
         st.markdown(f"""
         <div class="confidence-metric">
             <div class="metric-label">Grounding quality</div>
