@@ -2,7 +2,7 @@ import numpy as np
 
 
 
-def evaluate_evidence_structure(chunks, floor=0.25):
+def evaluate_evidence_structure(chunks, floor=0.25, ideal_max=5.0, semantic_threshold=0.25):
     """
     Evaluate the structural quality of retrieved evidence.
 
@@ -24,7 +24,7 @@ def evaluate_evidence_structure(chunks, floor=0.25):
 
     Returns
     -------
-    structure_score : float
+    evidence_quality : float
         Continuous evidence structure score in [0, 1].
 
     flags : dict
@@ -34,35 +34,31 @@ def evaluate_evidence_structure(chunks, floor=0.25):
     metrics : dict
         Detailed intermediate statistics used for analysis
         and debugging.
+
+    strong_hit_chunks : list
     """
 
     if not chunks:
-        return None
+        return None, None, None, None
 
     scores = np.array([c["final_score"] for c in chunks])
     paper_ids = [c["paper_id"] for c in chunks]
 
-    mean = scores.mean()
-    std = scores.std()
-    max_score = scores.max()
+    mean_score, std_score, max_score = scores.mean(), scores.std(), scores.max()
 
     # --- Z-normalization ---
-    if std < 1e-6:
+    if std_score < 1e-6:
         z = np.zeros_like(scores)
     else:
-        z = (scores - mean) / std
+        z = (scores - mean_score) / std_score
 
     max_z = z.max()
 
-    strong_indices = np.where(z > 1.0)[0]
-    moderate_indices = np.where(z > 0.5)[0]
-
-    strong_hits = len(strong_indices)
-    moderate_hits = len(moderate_indices)
-
-    distinct_strong_sources = len(
-        set(paper_ids[i] for i in strong_indices)
-    )
+    # --- Hits ---
+    strong_indices, moderate_indices = np.where(z > 1.0)[0], np.where(z > 0.5)[0]
+    strong_hits, moderate_hits = len(strong_indices), len(moderate_indices)
+    
+    distinct_strong_sources = len(set(paper_ids[i] for i in strong_indices))
 
     # --- Compute dominance ratio ---
     if strong_hits > 0:
@@ -76,7 +72,17 @@ def evaluate_evidence_structure(chunks, floor=0.25):
     else:
         dominance_ratio = 1.0
 
-    # --- Effective density (include moderate signals) ---
+
+    # --------------------------
+    # 1. Semantic strength (0..1)
+    # --------------------------
+    max_norm = min(max_score / ideal_max, 1.0)
+    mean_norm = max(0.0, min(1.0, (mean_score - floor) / (ideal_max - floor)))
+    semantic_strength = 0.7 * max_norm + 0.3 * mean_norm
+
+    # --------------------------
+    # 2. Evidence structure metrics
+    # --------------------------
     pure_moderate_hits = max(0, moderate_hits - strong_hits)
     effective_hits = strong_hits + 0.5 * pure_moderate_hits
 
@@ -84,14 +90,16 @@ def evaluate_evidence_structure(chunks, floor=0.25):
     diversity_score = min(distinct_strong_sources / 3.0, 1.0)
     balance_score = 1.0 - dominance_ratio
 
-    structure_score = (
-        0.4 * density_score +
-        0.4 * diversity_score +
-        0.2 * balance_score
-    )
+    structure_score = 0.4 * density_score + 0.4 * diversity_score + 0.2 * balance_score
     structure_score = max(0.0, min(1.0, structure_score))
 
+    # --------------------------
+    # 2. Evidence quality
+    # --------------------------
+    evidence_quality = structure_score * semantic_strength
+
     flags = {
+        "weak_semantic_match": semantic_strength < semantic_threshold,
         "absent": max_score < floor,
         "isolated": strong_hits == 1 and max_z > 2,
         "single_source_dominance": strong_hits >= 5 and distinct_strong_sources == 1,
@@ -102,35 +110,19 @@ def evaluate_evidence_structure(chunks, floor=0.25):
         "high_density": effective_hits >= 10,
     }
 
-    if flags['absent']:
-        metrics = {
-            "mean_score": round(mean,2),
-            "std_score": round(std,2),
-            "max_score": round(max_score,2),
-        }
-
-    elif flags['isolated']:
-        metrics = {
-            "mean_score": round(mean,2),
-            "std_score": round(std,2),
-            "max_score": round(max_score,2),
-            "strong_hits": strong_hits,
-        }
-
-    else:
-        metrics = {
-        "mean_score": round(mean,2),
-        "std_score": round(std,2),
+    metrics = {
+        "mean_score": round(mean_score,2),
+        "std_score": round(std_score,2),
         "max_score": round(max_score,2),
         "strong_hits": strong_hits,
         "moderate_hits": moderate_hits,
         "distinct_strong_sources": distinct_strong_sources,
-        "dominance_ratio": round(dominance_ratio,2),
+        "dominance_ratio": round(dominance_ratio,2) if not flags["absent"] else None
     }
 
     strong_hit_chunks = [chunks[i] for i in strong_indices]
 
-    return structure_score, flags, metrics, strong_hit_chunks
+    return evidence_quality, flags, metrics, strong_hit_chunks
     
 
 
@@ -145,8 +137,11 @@ def explain_evidence(flags, max_items=3):
     }
 
     # --- Critical states ---
+    if flags.get("weak_semantic_match"):
+        explanations["weaknesses"].append("The literature does not address this question directly")
+
     if flags.get("absent"):
-        explanations["weaknesses"].append("No sufficiently relevant sources were identified")
+        explanations["weaknesses"].append("No sufficiently relevant evidence was identified")
         return explanations
 
     if flags.get("isolated"):
