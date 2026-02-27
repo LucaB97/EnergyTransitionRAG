@@ -1,11 +1,78 @@
 import numpy as np
 
-def evaluate_evidence_quality(chunks, floor=0.0, ideal_max=3.0, top_N=15,
+
+
+def semantic_norm(score, a, b):
+    import math
+    return 1 / (1 + math.exp(-a * (score - b)))
+
+
+
+def evaluate_semantic_alignment(chunks, params, top_N,
                                 weak_semantic_threshold=0.3, limited_semantic_threshold=0.5, moderate_semantic_threshold=0.75):
+    """
+    Evaluate the semantic alignment of the retrieved evidence to the query, 
+    based on previously evaluated chunk scores.
+
+    Parameters
+    ----------
+    chunks : list[dict]
+        Retrieved passages, each containing:
+            - final_score (float): Relevance score.
+            - paper_id (str): Identifier of source document.
+
+    Returns
+    -------
+    semantic_alignment : float
+        Continuous semantic alignment score in [0, 1].
+
+    flags : dict
+        Diagnostic indicators based on the score.
+    """
+    if not chunks:
+        return None, None
+
+    scores = np.array([c["final_score"] for c in chunks])
+    max_score = scores.max()
+    top_scores = sorted(scores, reverse=True)[:top_N]
+    mean_score_topN = sum(top_scores) / len(top_scores)
+
+    norm_max = semantic_norm(max_score, params["a"], params["b"])
+    norm_mean = semantic_norm(mean_score_topN, params["a"], params["b"])
+    semantic_alignment = 0.7 * norm_max + 0.3 * norm_mean
+    
+    flags = {
+        "weak_semantic_match": semantic_alignment < weak_semantic_threshold,
+        "limited_semantic_match": semantic_alignment < limited_semantic_threshold,
+        "moderate_semantic_match": semantic_alignment < moderate_semantic_threshold,
+    }
+
+    return semantic_alignment, flags
+
+
+def explain_semantic(flags):
+    """
+    Generate explanations for semantics alignment of evidence to query
+    """
+
+    if flags.get("weak_semantic_match"):
+        return "Most retrieved passages are marginally related to the query"
+
+    if flags.get("limited_semantic_match"):
+        return "Some retrieved passages are relevant, but coverage of the query is inconsistent"
+
+    if flags.get("moderate_semantic_match"):
+        return "Retrieved passages are generally relevant to the query"
+    
+    return "Retrieved passages closely align with the query"
+
+
+
+def evaluate_evidence_structure(chunks, params, floor = 0.1):
     """
     Evaluate the structural quality of retrieved evidence.
 
-    This function computes a continuous structure score based on:
+    A continuous score is computed, based on:
         - Density of high-relevance passages
         - Diversity of supporting sources
         - Balance of contribution across sources
@@ -23,9 +90,6 @@ def evaluate_evidence_quality(chunks, floor=0.0, ideal_max=3.0, top_N=15,
 
     Returns
     -------
-    semantic_alignment : float
-        Continuous evidence structure score in [0, 1].
-
     evidence_structure : float
         Continuous evidence structure score in [0, 1].
 
@@ -41,7 +105,7 @@ def evaluate_evidence_quality(chunks, floor=0.0, ideal_max=3.0, top_N=15,
     """
 
     if not chunks:
-        return None, None, None, None, None
+        return None, None, None, None
 
     scores = np.array([c["final_score"] for c in chunks])
     paper_ids = [c["paper_id"] for c in chunks]
@@ -74,20 +138,8 @@ def evaluate_evidence_quality(chunks, floor=0.0, ideal_max=3.0, top_N=15,
     else:
         dominance_ratio = 1.0
 
-
     # --------------------------
-    # 1. Semantic strength (0..1)
-    # --------------------------
-    max_norm = min(max_score / ideal_max, 1.0)
-    
-    top_scores = sorted(scores, reverse=True)[:top_N]
-    mean_score_topN = sum(top_scores) / len(top_scores)
-    mean_norm = max(0.0, min(1.0, (mean_score_topN) / (ideal_max)))
-    
-    semantic_alignment = 0.7 * max_norm + 0.3 * mean_norm
-
-    # --------------------------
-    # 2. Evidence structure metrics
+    # Evidence structure metrics
     # --------------------------
     pure_moderate_hits = max(0, moderate_hits - strong_hits)
     effective_hits = strong_hits + 0.5 * pure_moderate_hits
@@ -99,14 +151,8 @@ def evaluate_evidence_quality(chunks, floor=0.0, ideal_max=3.0, top_N=15,
     evidence_structure = 0.4 * density_score + 0.4 * diversity_score + 0.2 * balance_score
     evidence_structure = max(0.0, min(1.0, evidence_structure))
 
-    # --------------------------
-    # 2. Evidence quality
-    # --------------------------
     flags = {
-        "weak_semantic_match": semantic_alignment < weak_semantic_threshold,
-        "limited_semantic_match": semantic_alignment < limited_semantic_threshold,
-        "moderate_semantic_match": semantic_alignment < moderate_semantic_threshold,
-        "absent": max_score < floor,
+        "absent": semantic_norm(max_score, params["a"], params["b"]) < floor,
         "isolated": strong_hits == 1 and max_z > 2,
         "single_source_dominance": strong_hits >= 5 and distinct_strong_sources == 1,
         "low_density": effective_hits < 5,
@@ -120,7 +166,6 @@ def evaluate_evidence_quality(chunks, floor=0.0, ideal_max=3.0, top_N=15,
         "mean_score_global": round(mean_score,2),
         "std_score_global": round(std_score,2),
         "max_score": round(max_score,2),
-        f"mean_score_top{top_N}": round(mean_score_topN,2),
         "moderate_hits": pure_moderate_hits,
         "strong_hits": strong_hits,
         "distinct_strong_sources": distinct_strong_sources,
@@ -129,27 +174,7 @@ def evaluate_evidence_quality(chunks, floor=0.0, ideal_max=3.0, top_N=15,
 
     strong_hit_chunks = [chunks[i] for i in strong_indices]
 
-    return semantic_alignment, evidence_structure, flags, metrics, strong_hit_chunks
-    
-
-
-def explain_semantic(flags):
-    """
-    Generate severity-aware explanations for semantics alignment of evidence to query
-    """
-
-    # --- Critical states ---
-    if flags.get("weak_semantic_match"):
-        return "Most retrieved passages are marginally related to the query"
-
-    if flags.get("limited_semantic_match"):
-        return "Some retrieved passages are relevant, but coverage of the query is inconsistent"
-
-    # --- Positive / strengths ---
-    if flags.get("moderate_semantic_match"):
-        return "Retrieved passages are generally relevant to the query"
-    
-    return "Retrieved passages closely align with the query"
+    return evidence_structure, flags, metrics, strong_hit_chunks
 
 
 
@@ -313,7 +338,8 @@ def explain_grounding(flags, max_items=3):
 
 
 def evaluate_confidence_profile(pipeline_status, 
-                                semantic_score=None, evidence_score=None, evidence_flags=None, 
+                                semantic_score=None, semantic_flags=None,
+                                evidence_score=None, evidence_flags=None, 
                                 grounding_score=None, grounding_flags=None,
                                 reason=None):
     """
@@ -338,7 +364,7 @@ def evaluate_confidence_profile(pipeline_status,
     semantic_alignment = {
         "level": semantic_level,
         "score": semantic_score,
-        "explanation": explain_semantic(evidence_flags) if evidence_flags else []
+        "explanation": explain_semantic(semantic_flags) if semantic_flags else []
     }
 
 

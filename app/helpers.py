@@ -10,8 +10,8 @@ def deduplicate(chunks):
     return unique
 
 
-def needs_retry(evidence_flags):
-    if evidence_flags["weak_semantic_match"] and not evidence_flags["absent"]:
+def needs_retry(semantic_flags, evidence_flags):
+    if semantic_flags["weak_semantic_match"] and not evidence_flags["absent"]:
         return True
 
     if evidence_flags["isolated"] or evidence_flags["low_density"]:

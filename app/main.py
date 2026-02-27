@@ -11,7 +11,7 @@ from app.utils.prompt import SCOPE_CLASSIFIER_PROMPT, QUERY_EXPANDER_PROMPT, TAS
 from app.utils.citations import build_citation_index, build_sources, CitationStyle, FORMATTERS, resolve_answer_citations, remove_citations_inside_text 
 from app.utils.heuristics import determine_retry_reason
 from app.utils.evidence_analysis import aggregate_evidence, extract_sentence_paper_ids, compute_grounding_metrics
-from app.utils.confidence import evaluate_evidence_quality, evaluate_grounding_quality, evaluate_confidence_profile
+from app.utils.confidence import evaluate_semantic_alignment, evaluate_evidence_structure, evaluate_grounding_quality, evaluate_confidence_profile
 
 
 app = FastAPI(
@@ -56,6 +56,7 @@ def query_endpoint(request: QueryRequest, req: Request):
     scope_classifier = req.app.state.scope_classifier
     retriever = req.app.state.retriever
     relevance_profiler = req.app.state.relevance_profiler
+    profiling_params = req.app.state.profiling_params
     query_expander = req.app.state.query_expander
     synthesizer = req.app.state.synthesizer
     
@@ -112,7 +113,7 @@ def query_endpoint(request: QueryRequest, req: Request):
     }
     
     pipeline_status = "success"
-
+    top_N = 15
     #
     # --- Zero-shot classification of scope---
     #
@@ -158,13 +159,15 @@ def query_endpoint(request: QueryRequest, req: Request):
 
     meta["profiling"]["profiling_time_sec"] = round(profiling_time, 3)
 
-    semantic_alignment, evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_quality(reranked_chunks)
+    semantic_alignment, semantic_flags = evaluate_semantic_alignment(reranked_chunks, profiling_params, top_N)
+    
+    evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks, profiling_params)
 
     #
     # --- Retrieval retry ---
     #
 
-    if needs_retry(evidence_flags):
+    if needs_retry(semantic_flags, evidence_flags):
         
         if not query_expansion:
 
@@ -197,7 +200,9 @@ def query_endpoint(request: QueryRequest, req: Request):
             profiling_time += time.perf_counter() - t1
             meta["profiling"]["profiling_time_sec"] = round(profiling_time, 3)
 
-            semantic_alignment, evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_quality(reranked_chunks)
+            semantic_alignment, semantic_flags = evaluate_semantic_alignment(reranked_chunks, profiling_params, top_N)
+    
+            evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks, profiling_params)
 
 
     for chunk in strong_chunks:
@@ -211,9 +216,9 @@ def query_endpoint(request: QueryRequest, req: Request):
     # --- Early returns ---
     #
 
-    if evidence_flags["weak_semantic_match"] or evidence_flags["absent"] or evidence_flags["isolated"]:
+    if semantic_flags["weak_semantic_match"] or evidence_flags["absent"] or evidence_flags["isolated"]:
         limitations=assign_limitations(weak_semantic_match=evidence_flags["weak_semantic_match"], absent=evidence_flags["absent"], isolated=evidence_flags["isolated"])
-        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_flags, reason="Grounding score is absent because synthesis was not performed")
+        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, semantic_flags, evidence_structure, evidence_flags, reason="Grounding score is absent because synthesis was not performed")
         trace={
             "query_expansion": expanded_query,
             "strong_hit_chunks": strong_chunks            
@@ -223,8 +228,6 @@ def query_endpoint(request: QueryRequest, req: Request):
     #
     # --- Synthesis ---
     #    
-
-    top_N = 15
     meta["synthesis"]["chunks_selected"] = top_N
 
     provided_chunks = reranked_chunks[:top_N]
@@ -281,7 +284,7 @@ def query_endpoint(request: QueryRequest, req: Request):
             #     meta["synthesis"]["synthesis_retry"]["total_attempts"] = attempt
             #     meta["synthesis"]["synthesis_retry"]["retry_triggers"] = retry_triggers
 
-            confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_flags, 
+            confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, semantic_flags, evidence_structure, evidence_flags, 
                                                              reason="Grounding score is absent because the synthesizer abstained from synthesis")
             trace={
             "query_expansion": expanded_query,
@@ -303,7 +306,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         grounding_metrics = compute_grounding_metrics(aggregation, sentence_papers)
 
         grounding_score, grounding_flags = evaluate_grounding_quality(grounding_metrics)
-        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_flags, grounding_score, grounding_flags)
+        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, semantic_flags, evidence_structure, evidence_flags, grounding_score, grounding_flags)
         
         score = confidence_profile["grounding"]["score"]
         if score > best_score:
@@ -343,7 +346,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         meta["errors"]["generation_error"] = True
         meta["errors"]["total_attempts"] = synthesizer.max_attempts
         meta["errors"]["last_error"] = last_error
-        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_flags, 
+        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, semantic_flags, evidence_structure, evidence_flags, 
                                                          reason="Grounding score is absent because the synthesis generation failed")
         return build_response(query, pipeline_status, limitations, meta=meta, 
                               evidence_structure=evidence_meta, confidence=confidence_profile)  

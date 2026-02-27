@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 METADATA_PATH = PROJECT_ROOT / "data" / "metadata.csv"
 CHUNKS_PATH = PROJECT_ROOT / "data" / "chunks_500t_100o.json"
 FAISS_PATH = PROJECT_ROOT / "data" / "faiss_openai_500t_100o.index"
-
+SEMANTIC_ALIGNMENT_PARAMS_PATH = PROJECT_ROOT / "data" / "semantic_alignment_params.json"
 
 def load_system(app, profile: Optional[str] = None):
     
@@ -27,6 +27,9 @@ def load_system(app, profile: Optional[str] = None):
 
     with open(CHUNKS_PATH, encoding="utf-8") as f:
         chunks = json.load(f)
+
+    with open(SEMANTIC_ALIGNMENT_PARAMS_PATH, encoding="utf-8") as f:
+        semantic_alignment_params = json.load(f)
 
     index = load_faiss(FAISS_PATH)
     embedding_fn = OpenAIEmbedding()
@@ -62,5 +65,6 @@ def load_system(app, profile: Optional[str] = None):
     app.state.scope_classifier = scope_classifier
     app.state.retriever = retriever
     app.state.relevance_profiler = relevance_profiler
+    app.state.profiling_params = semantic_alignment_params
     app.state.query_expander = query_expander
     app.state.synthesizer = synthesizer
