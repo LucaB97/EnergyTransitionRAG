@@ -213,6 +213,9 @@ def render_confidence_profile(confidence):
         </div>
         """, unsafe_allow_html=True)
 
+    if semantic['score'] < 0.5:
+        st.warning("⚠️ Retrieved evidence is weakly aligned with the query")
+
 
 ### Citations
 
@@ -335,7 +338,8 @@ def show_trace(data):
         if query_expansion:
             st.markdown("<br>", unsafe_allow_html=True)
             st.subheader("Query expansion")
-            st.markdown(query_expansion)
+            st.markdown(f"**Original query:**\n{query_expansion[0]}")
+            st.markdown(f"**Expanded query:**\n{query_expansion[1]}")
         
         ## Strong hit chunks
         strong_hits = trace.get("strong_hit_chunks", None)

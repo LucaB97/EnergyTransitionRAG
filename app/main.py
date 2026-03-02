@@ -38,9 +38,9 @@ def health_check(req: Request):
         "index_loaded": (
             retriever is not None
             and hasattr(retriever, "index")
-            and retriever.index is not None
+            and retriever.semantic_retriever.index is not None
         ),
-        "index_size": retriever.index.ntotal if retriever else None,
+        "index_size": retriever.semantic_retriever.index.ntotal if retriever else None,
         "relevance_profiler_loaded": hasattr(req.app.state, "relevance_profiler"),
         "query_expander_loaded": hasattr(req.app.state, "query_expander"),
         "synthesizer_loaded": hasattr(req.app.state, "synthesizer"),
@@ -57,6 +57,7 @@ def query_endpoint(request: QueryRequest, req: Request):
     retriever = req.app.state.retriever
     relevance_profiler = req.app.state.relevance_profiler
     profiling_params = req.app.state.profiling_params
+    effective_hits_distribution = req.app.state.effective_hits_distribution
     query_expander = req.app.state.query_expander
     synthesizer = req.app.state.synthesizer
     
@@ -131,7 +132,7 @@ def query_endpoint(request: QueryRequest, req: Request):
     #
     topk_faiss, topk_bm25 = request.topk_faiss, request.topk_bm25
     query_expansion = False
-    expanded_query = None
+    queries = None
 
     t0 = time.perf_counter()
     retrieved_chunks = retriever.search(query, topk_faiss=topk_faiss, topk_bm25=topk_bm25)
@@ -159,15 +160,15 @@ def query_endpoint(request: QueryRequest, req: Request):
 
     meta["profiling"]["profiling_time_sec"] = round(profiling_time, 3)
 
-    semantic_alignment, semantic_flags = evaluate_semantic_alignment(reranked_chunks, profiling_params, top_N)
+    semantic_alignment = evaluate_semantic_alignment(reranked_chunks, profiling_params, top_N)
     
-    evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks, profiling_params)
+    evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks, profiling_params, effective_hits_distribution)
 
     #
     # --- Retrieval retry ---
     #
 
-    if needs_retry(semantic_flags, evidence_flags):
+    if needs_retry(semantic_alignment, evidence_flags):
         
         if not query_expansion:
 
@@ -192,7 +193,7 @@ def query_endpoint(request: QueryRequest, req: Request):
                 pipeline_status = "retrieval_failed"
                 limitations = ["No documents could be retrieved for this question"]
                 confidence_profile = evaluate_confidence_profile(pipeline_status, reason="Early termination because no evidence was retrieved")
-                trace={"query_expansion": expanded_query}
+                trace={"query_expansion": queries}
                 return build_response(query, pipeline_status, limitations, meta=meta, confidence=confidence_profile, trace=trace)
             
             t1 = time.perf_counter()
@@ -200,9 +201,9 @@ def query_endpoint(request: QueryRequest, req: Request):
             profiling_time += time.perf_counter() - t1
             meta["profiling"]["profiling_time_sec"] = round(profiling_time, 3)
 
-            semantic_alignment, semantic_flags = evaluate_semantic_alignment(reranked_chunks, profiling_params, top_N)
+            semantic_alignment = evaluate_semantic_alignment(reranked_chunks, profiling_params, top_N)
     
-            evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks, profiling_params)
+            evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks, profiling_params, effective_hits_distribution)
 
 
     for chunk in strong_chunks:
@@ -216,11 +217,11 @@ def query_endpoint(request: QueryRequest, req: Request):
     # --- Early returns ---
     #
 
-    if semantic_flags["weak_semantic_match"] or evidence_flags["absent"] or evidence_flags["isolated"]:
-        limitations=assign_limitations(weak_semantic_match=evidence_flags["weak_semantic_match"], absent=evidence_flags["absent"], isolated=evidence_flags["isolated"])
-        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, semantic_flags, evidence_structure, evidence_flags, reason="Grounding score is absent because synthesis was not performed")
+    if semantic_alignment < 0.25 or evidence_flags["absent"] or evidence_flags["isolated"]:
+        limitations=assign_limitations(semantic_alignment, absent=evidence_flags["absent"], isolated=evidence_flags["isolated"])
+        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_flags, reason="Grounding score is absent because synthesis was not performed")
         trace={
-            "query_expansion": expanded_query,
+            "query_expansion": queries,
             "strong_hit_chunks": strong_chunks            
             }
         return build_response(query, pipeline_status, limitations, meta=meta, evidence_structure=evidence_meta, confidence=confidence_profile, trace=trace)   
@@ -284,11 +285,11 @@ def query_endpoint(request: QueryRequest, req: Request):
             #     meta["synthesis"]["synthesis_retry"]["total_attempts"] = attempt
             #     meta["synthesis"]["synthesis_retry"]["retry_triggers"] = retry_triggers
 
-            confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, semantic_flags, evidence_structure, evidence_flags, 
+            confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_flags, 
                                                              reason="Grounding score is absent because the synthesizer abstained from synthesis")
             trace={
-            "query_expansion": expanded_query,
-            "strong_hit_chunks": strong_chunks
+            "query_expansion": queries,
+            "strong_hit_chunks": strong_chunks  
             }
             return build_response(query, pipeline_status, limitations, meta=meta, 
                                   evidence_structure=evidence_meta, confidence=confidence_profile, trace=trace)   
@@ -306,7 +307,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         grounding_metrics = compute_grounding_metrics(aggregation, sentence_papers)
 
         grounding_score, grounding_flags = evaluate_grounding_quality(grounding_metrics)
-        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, semantic_flags, evidence_structure, evidence_flags, grounding_score, grounding_flags)
+        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_flags, grounding_score, grounding_flags)
         
         score = confidence_profile["grounding"]["score"]
         if score > best_score:
@@ -318,8 +319,8 @@ def query_endpoint(request: QueryRequest, req: Request):
             best_score = score
 
         # --- Retry decision ---
-        if grounding_score < 0.5:
-            retry_reason = determine_retry_reason(grounding_metrics, evidence_meta["distinct_strong_sources"])
+        if grounding_score < 0.5 and attempt < max_attempts:
+            retry_reason = determine_retry_reason(grounding_metrics, evidence_meta["distinct_sources_hits"])
             retry_triggers.append(retry_reason) 
         else:
             retry_reason = None             
@@ -346,7 +347,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         meta["errors"]["generation_error"] = True
         meta["errors"]["total_attempts"] = synthesizer.max_attempts
         meta["errors"]["last_error"] = last_error
-        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, semantic_flags, evidence_structure, evidence_flags, 
+        confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_flags, 
                                                          reason="Grounding score is absent because the synthesis generation failed")
         return build_response(query, pipeline_status, limitations, meta=meta, 
                               evidence_structure=evidence_meta, confidence=confidence_profile)  
@@ -366,8 +367,7 @@ def query_endpoint(request: QueryRequest, req: Request):
     resolved_answer = remove_citations_inside_text(resolved_answer) ## remove references from synthesis text
 
     trace={
-        "query_expansion": expanded_query,
-        "strong_hit_chunks": strong_chunks,
+        "query_expansion": queries,
         "chunks_provided_to_synthesizer": best_aggregation["chunks"],
         "paper_stats": [
             {"paper_id": pid, **stats}

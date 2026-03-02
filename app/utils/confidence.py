@@ -8,8 +8,7 @@ def semantic_norm(score, a, b):
 
 
 
-def evaluate_semantic_alignment(chunks, params, top_N,
-                                weak_semantic_threshold=0.3, limited_semantic_threshold=0.5, moderate_semantic_threshold=0.75):
+def evaluate_semantic_alignment(chunks, params, top_N):
     """
     Evaluate the semantic alignment of the retrieved evidence to the query, 
     based on previously evaluated chunk scores.
@@ -40,35 +39,29 @@ def evaluate_semantic_alignment(chunks, params, top_N,
     norm_max = semantic_norm(max_score, params["a"], params["b"])
     norm_mean = semantic_norm(mean_score_topN, params["a"], params["b"])
     semantic_alignment = 0.7 * norm_max + 0.3 * norm_mean
-    
-    flags = {
-        "weak_semantic_match": semantic_alignment < weak_semantic_threshold,
-        "limited_semantic_match": semantic_alignment < limited_semantic_threshold,
-        "moderate_semantic_match": semantic_alignment < moderate_semantic_threshold,
-    }
 
-    return semantic_alignment, flags
+    return semantic_alignment
 
 
-def explain_semantic(flags):
+def explain_semantic(semantic_alignment):
     """
     Generate explanations for semantics alignment of evidence to query
     """
 
-    if flags.get("weak_semantic_match"):
-        return "Most retrieved passages are marginally related to the query"
-
-    if flags.get("limited_semantic_match"):
+    if semantic_alignment < 0.25:
+        return "Most retrieved passages are marginally or not related to the query"
+    
+    elif semantic_alignment < 0.5: 
         return "Some retrieved passages are relevant, but coverage of the query is inconsistent"
 
-    if flags.get("moderate_semantic_match"):
+    elif semantic_alignment < 0.75:
         return "Retrieved passages are generally relevant to the query"
     
     return "Retrieved passages closely align with the query"
 
 
 
-def evaluate_evidence_structure(chunks, params, floor = 0.1):
+def evaluate_evidence_structure(chunks, params, hits_distribution):
     """
     Evaluate the structural quality of retrieved evidence.
 
@@ -106,60 +99,75 @@ def evaluate_evidence_structure(chunks, params, floor = 0.1):
 
     if not chunks:
         return None, None, None, None
+    
+    a, b = params["a"], params["b"]
+    q25, q75 = hits_distribution["q25"], hits_distribution["q75"]
 
     scores = np.array([c["final_score"] for c in chunks])
     paper_ids = [c["paper_id"] for c in chunks]
 
     mean_score, std_score, max_score = scores.mean(), scores.std(), scores.max()
 
-    # --- Z-normalization ---
+    # Z-normalization
+
     if std_score < 1e-6:
         z = np.zeros_like(scores)
     else:
         z = (scores - mean_score) / std_score
 
-    max_z = z.max()
 
-    # --- Hits ---
-    strong_indices, moderate_indices = np.where(z > 1.0)[0], np.where(z > 0.5)[0]
+    # Hits
+
+    abs_relevance = np.array([semantic_norm(s, a, b) for s in scores])
+    strong_mask = (z > 1.5) & (abs_relevance > 0.7)
+    moderate_mask = (z > 0.5) & (abs_relevance > 0.4)
+
+    strong_indices = np.where(strong_mask)[0]
+    moderate_indices = np.where(moderate_mask)[0]
+
     strong_hits, moderate_hits = len(strong_indices), len(moderate_indices)
     
-    distinct_strong_sources = len(set(paper_ids[i] for i in strong_indices))
+    pure_moderate_hits = max(0, moderate_hits - strong_hits)
+    effective_hits = strong_hits + 0.5 * pure_moderate_hits
 
-    # --- Compute dominance ratio ---
-    if strong_hits > 0:
-        strong_source_counts = {}
-        for i in strong_indices:
+
+    # Dominance ratio
+        
+    source_weights = {}
+
+    for i in strong_indices:
+        pid = paper_ids[i]
+        source_weights[pid] = source_weights.get(pid, 0) + 1.0
+
+    for i in moderate_indices:
+        if i not in strong_indices:
             pid = paper_ids[i]
-            strong_source_counts[pid] = strong_source_counts.get(pid, 0) + 1
+            source_weights[pid] = source_weights.get(pid, 0) + 0.5
 
-        max_source_hits = max(strong_source_counts.values())
-        dominance_ratio = max_source_hits / strong_hits
-    else:
-        dominance_ratio = 1.0
+    max_weight = max(source_weights.values())
+    dominance_ratio = max_weight / effective_hits
+    distinct_effective_sources = len(source_weights)
 
     # --------------------------
     # Evidence structure metrics
     # --------------------------
-    pure_moderate_hits = max(0, moderate_hits - strong_hits)
-    effective_hits = strong_hits + 0.5 * pure_moderate_hits
-
-    density_score = min(effective_hits / 15.0, 1.0)
-    diversity_score = min(distinct_strong_sources / 3.0, 1.0)
+    
+    density_score = min(effective_hits / q75, 1.0)
+    diversity_score = min(distinct_effective_sources / 3.0, 1.0)
     balance_score = 1.0 - dominance_ratio
 
     evidence_structure = 0.4 * density_score + 0.4 * diversity_score + 0.2 * balance_score
     evidence_structure = max(0.0, min(1.0, evidence_structure))
 
     flags = {
-        "absent": semantic_norm(max_score, params["a"], params["b"]) < floor,
-        "isolated": strong_hits == 1 and max_z > 2,
-        "single_source_dominance": strong_hits >= 5 and distinct_strong_sources == 1,
-        "low_density": effective_hits < 5,
-        "low_diversity": distinct_strong_sources <= 2,
-        "multiple_strong_sources": strong_hits >= 3 and distinct_strong_sources > 2,
-        "well_balanced": dominance_ratio < 0.6 and distinct_strong_sources > 2,
-        "high_density": effective_hits >= 10,
+        "absent": effective_hits == 0,
+        "isolated": effective_hits <= 2,
+        "single_source_dominance": effective_hits >= 3 and distinct_effective_sources == 1,
+        "low_density": effective_hits < q25,
+        "low_diversity": distinct_effective_sources <= 2,
+        "multiple_relevant_sources": effective_hits >= 3 and distinct_effective_sources > 2,
+        "well_balanced": dominance_ratio < 0.6 and distinct_effective_sources > 2,
+        "high_density": effective_hits > q75,
     }
 
     metrics = {
@@ -168,8 +176,8 @@ def evaluate_evidence_structure(chunks, params, floor = 0.1):
         "max_score": round(max_score,2),
         "moderate_hits": pure_moderate_hits,
         "strong_hits": strong_hits,
-        "distinct_strong_sources": distinct_strong_sources,
-        "dominance_ratio": round(dominance_ratio,2) if not flags["absent"] else None
+        "distinct_sources_hits": distinct_effective_sources,
+        "dominance_ratio": round(dominance_ratio,2) if distinct_effective_sources >= 1 else None
     }
 
     strong_hit_chunks = [chunks[i] for i in strong_indices]
@@ -211,7 +219,7 @@ def explain_evidence(flags, max_items=3):
     if flags.get("high_density"):
         explanations["strengths"].append("Several retrieved passages are highly relevant")
 
-    if flags.get("multiple_strong_sources"):
+    if flags.get("multiple_relevant_sources"):
         explanations["strengths"].append("Highly relevant passages come from multiple independent sources")
 
     if flags.get("well_balanced"):
@@ -338,7 +346,7 @@ def explain_grounding(flags, max_items=3):
 
 
 def evaluate_confidence_profile(pipeline_status, 
-                                semantic_score=None, semantic_flags=None,
+                                semantic_score=None,
                                 evidence_score=None, evidence_flags=None, 
                                 grounding_score=None, grounding_flags=None,
                                 reason=None):
@@ -364,7 +372,7 @@ def evaluate_confidence_profile(pipeline_status,
     semantic_alignment = {
         "level": semantic_level,
         "score": semantic_score,
-        "explanation": explain_semantic(semantic_flags) if semantic_flags else []
+        "explanation": explain_semantic(semantic_score) if semantic_score else []
     }
 
 

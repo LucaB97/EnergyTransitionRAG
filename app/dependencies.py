@@ -17,6 +17,7 @@ METADATA_PATH = PROJECT_ROOT / "data" / "metadata.csv"
 CHUNKS_PATH = PROJECT_ROOT / "data" / "chunks_500t_100o.json"
 FAISS_PATH = PROJECT_ROOT / "data" / "faiss_openai_500t_100o.index"
 SEMANTIC_ALIGNMENT_PARAMS_PATH = PROJECT_ROOT / "data" / "semantic_alignment_params.json"
+HITS_DISTRIBUTION_PARAMS_PATH = PROJECT_ROOT / "data" / "effective_hits_distribution.json"
 
 def load_system(app, profile: Optional[str] = None):
     
@@ -30,6 +31,9 @@ def load_system(app, profile: Optional[str] = None):
 
     with open(SEMANTIC_ALIGNMENT_PARAMS_PATH, encoding="utf-8") as f:
         semantic_alignment_params = json.load(f)
+
+    with open(HITS_DISTRIBUTION_PARAMS_PATH, encoding="utf-8") as f:
+        effective_hits_distribution = json.load(f)
 
     index = load_faiss(FAISS_PATH)
     embedding_fn = OpenAIEmbedding()
@@ -66,5 +70,6 @@ def load_system(app, profile: Optional[str] = None):
     app.state.retriever = retriever
     app.state.relevance_profiler = relevance_profiler
     app.state.profiling_params = semantic_alignment_params
+    app.state.effective_hits_distribution = effective_hits_distribution
     app.state.query_expander = query_expander
     app.state.synthesizer = synthesizer

@@ -140,6 +140,9 @@ if data:
         if confidence["status"] == "Not applicable":
             show_limitations(data, level="warning")
             show_metadata(data)
+            if data.get("evidence_structure", {}):
+                with st.expander("Evidence distribution", expanded=False):
+                    st.json(data.get("evidence_structure", {})) 
             show_trace(data)
             st.stop()
 

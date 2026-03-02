@@ -1,4 +1,4 @@
-def determine_retry_reason(metrics, available_strong_papers):
+def determine_retry_reason(metrics, distinct_hit_papers):
     """
     Determine whether post-synthesis regeneration (retry) is warranted
     based on structural imbalances in how retrieved evidence was used.
@@ -29,7 +29,7 @@ def determine_retry_reason(metrics, available_strong_papers):
             - multi_source_sentence_ratio (float): Fraction of sentences
               supported by multiple sources.
 
-    available_strong_papers : int
+    distinct_hit_papers : int
         Number of distinct papers containing highly relevant passages
         identified during evidence structure evaluation. This reflects
         the diversity that was available prior to synthesis.
@@ -56,7 +56,7 @@ def determine_retry_reason(metrics, available_strong_papers):
     # -----------------------------------------
     # 1. Source dominance despite diversity
     # -----------------------------------------
-    if (available_strong_papers >= 3 and metrics["paper_dominance"] > 0.75):
+    if (distinct_hit_papers >= 3 and metrics["paper_dominance"] > 0.75):
         failures["source_dominance"] = metrics["paper_dominance"]
 
     # -----------------------------------------
@@ -69,7 +69,7 @@ def determine_retry_reason(metrics, available_strong_papers):
     # 3. No cross-source use despite diversity
     # -----------------------------------------
     if (
-        available_strong_papers >= 3
+        distinct_hit_papers >= 3
         and metrics["multi_source_sentence_ratio"] == 0
         and metrics["used_papers"] >= 3
     ):

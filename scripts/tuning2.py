@@ -10,9 +10,22 @@ from utils.cross_encoder import RelevanceProfiler
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CHUNKS_PATH = PROJECT_ROOT / "data" / "chunks_500t_100o.json"
 FAISS_PATH = PROJECT_ROOT / "data" / "faiss_openai_500t_100o.index"
+SEMANTIC_ALIGNMENT_PARAMS_PATH = PROJECT_ROOT / "data" / "semantic_alignment_params.json"
+
+
+def semantic_norm(score, a, b):
+    import math
+    return 1 / (1 + math.exp(-a * (score - b)))
+
 
 with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
     chunks = json.load(f)
+
+with open(SEMANTIC_ALIGNMENT_PARAMS_PATH, encoding="utf-8") as f:
+    semantic_alignment_params = json.load(f)
+
+a,b = semantic_alignment_params["a"], semantic_alignment_params["b"]
+
 
 index = load_faiss(FAISS_PATH)
 embedding_fn = OpenAIEmbedding()
@@ -56,28 +69,47 @@ queries = [
     "Relationship between energy poverty alleviation and inclusive policy design in rural renewable energy programs"
     ]
 
-all_scores = []
+
+effective_hits = []
 
 for i, q in enumerate(queries):
     print(f"{i+1}/{len(queries)}")
+    
     retrieved_chunks = retriever.search(q, topk_faiss=30, topk_bm25=30)
     reranked_chunks = relevance_profiler.rerank(q, retrieved_chunks)
     scores = np.array([chunk["final_score"] for chunk in reranked_chunks])
-    all_scores.extend(scores)
 
-all_scores = np.array(all_scores)
-b = np.median(all_scores)
-x90 = np.percentile(all_scores, 90)
-y_target = 0.9
-a = -np.log(1 / y_target - 1) / (x90 - b)
+    mean_score, std_score, max_score = scores.mean(), scores.std(), scores.max()
+    if std_score < 1e-6:
+        z = np.zeros_like(scores)
+    else:
+        z = (scores - mean_score) / std_score
+    
+    abs_relevance = np.array([semantic_norm(s, a, b) for s in scores])
+    
+    strong_mask = (z > 1.5) & (abs_relevance > 0.6)
+    moderate_mask = (z > 0.5) & (abs_relevance > 0.4)
+
+    strong_hits = len(np.where(strong_mask)[0])
+    moderate_hits = len(np.where(moderate_mask)[0])
+    pure_moderate_hits = max(0, moderate_hits - strong_hits)
+    
+    effective_hits.append(strong_hits + 0.5 * pure_moderate_hits)
+
+
+
+q25 = np.percentile(effective_hits, 25)
+q50 = np.median(effective_hits)
+q75 = np.percentile(effective_hits, 75)
 
 params = {
-    "a": a,
-    "b": b,
+    "q25": q25,
+    "q50": q50,
+    "q75": q75,
 }
 
 # Choose a location in your project
-params_path = PROJECT_ROOT / "data" / "semantic_alignment_params.json"
+params_path = PROJECT_ROOT / "data" / "effective_hits_distribution.json"
 params_path.parent.mkdir(exist_ok=True)
 
 with open(params_path, "w", encoding="utf-8") as f:

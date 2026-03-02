@@ -3,15 +3,15 @@ def deduplicate(chunks):
     unique = []
 
     for chunk in chunks:
-        if chunk.chunk_id not in seen:
+        if chunk["chunk_id"] not in seen:
             unique.append(chunk)
-            seen.add(chunk.chunk_id)
+            seen.add(chunk["chunk_id"])
 
     return unique
 
 
-def needs_retry(semantic_flags, evidence_flags):
-    if semantic_flags["weak_semantic_match"] and not evidence_flags["absent"]:
+def needs_retry(semantic_alignment_score, evidence_flags):
+    if semantic_alignment_score < 0.25 and not evidence_flags["absent"]:
         return True
 
     if evidence_flags["isolated"] or evidence_flags["low_density"]:
@@ -20,13 +20,13 @@ def needs_retry(semantic_flags, evidence_flags):
     return False 
 
 
-def assign_limitations(weak_semantic_match=False, absent=False, isolated=False):
+def assign_limitations(semantic_alignment_score, absent=False, isolated=False):
     
-    if weak_semantic_match:
+    if semantic_alignment_score < 0.25:
         return ["The literature does not address this question directly"]
     
     if absent:
         return ["No sufficiently relevant evidence was identified"]
     
     if isolated:
-        ["The retrieved evidence is too narrow and context-specific to support synthesis across studies"]
+        return ["The retrieved evidence is too narrow and context-specific to support synthesis across studies"]
