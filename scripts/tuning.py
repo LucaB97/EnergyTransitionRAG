@@ -62,7 +62,7 @@ for i, q in enumerate(queries):
     print(f"{i+1}/{len(queries)}")
     retrieved_chunks = retriever.search(q, topk_faiss=30, topk_bm25=30)
     reranked_chunks = relevance_profiler.rerank(q, retrieved_chunks)
-    scores = np.array([chunk["final_score"] for chunk in reranked_chunks])
+    scores = [chunk["final_score"] for chunk in reranked_chunks[:15]]
     all_scores.extend(scores)
 
 all_scores = np.array(all_scores)
@@ -74,6 +74,7 @@ a = -np.log(1 / y_target - 1) / (x90 - b)
 params = {
     "a": a,
     "b": b,
+    "std_global": all_scores.std()
 }
 
 # Choose a location in your project

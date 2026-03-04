@@ -24,7 +24,10 @@ with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
 with open(SEMANTIC_ALIGNMENT_PARAMS_PATH, encoding="utf-8") as f:
     semantic_alignment_params = json.load(f)
 
+# Parameters configuration
 a,b = semantic_alignment_params["a"], semantic_alignment_params["b"]
+std_global = semantic_alignment_params["std_global"]
+alpha = 0.5
 
 
 index = load_faiss(FAISS_PATH)
@@ -69,43 +72,87 @@ queries = [
     "Relationship between energy poverty alleviation and inclusive policy design in rural renewable energy programs"
     ]
 
-
-effective_hits = []
+max_score_list = []
+mean_score_list = []
+effective_hits_list = []
+dominance_ratio_list = []
+distinct_sources_list = []
 
 for i, q in enumerate(queries):
     print(f"{i+1}/{len(queries)}")
     
     retrieved_chunks = retriever.search(q, topk_faiss=30, topk_bm25=30)
     reranked_chunks = relevance_profiler.rerank(q, retrieved_chunks)
-    scores = np.array([chunk["final_score"] for chunk in reranked_chunks])
+    relevant_chunks = reranked_chunks[:15]
 
+    scores = np.array([chunk["final_score"] for chunk in relevant_chunks])    
     mean_score, std_score, max_score = scores.mean(), scores.std(), scores.max()
+
     if std_score < 1e-6:
         z = np.zeros_like(scores)
     else:
-        z = (scores - mean_score) / std_score
+        std = max(std_score, std_global*alpha)
+        z = (scores - mean_score) / std
     
     abs_relevance = np.array([semantic_norm(s, a, b) for s in scores])
     
     strong_mask = (z > 1.5) & (abs_relevance > 0.6)
     moderate_mask = (z > 0.5) & (abs_relevance > 0.4)
 
-    strong_hits = len(np.where(strong_mask)[0])
-    moderate_hits = len(np.where(moderate_mask)[0])
-    pure_moderate_hits = max(0, moderate_hits - strong_hits)
+    strong_indices = np.where(strong_mask)[0]
+    moderate_indices = np.where(moderate_mask)[0]
     
-    effective_hits.append(strong_hits + 0.5 * pure_moderate_hits)
+    strong_hits, moderate_hits = len(strong_indices), len(moderate_indices)
+    pure_moderate_hits = max(0, moderate_hits - strong_hits)
+    effective_hits = strong_hits + 0.5 * pure_moderate_hits
+
+    ## Dominance ratio
+    paper_ids = [chunk["paper_id"] for chunk in relevant_chunks]
+    source_weights = {}
+
+    for i in strong_indices:
+        pid = paper_ids[i]
+        source_weights[pid] = source_weights.get(pid, 0) + 1.0
+
+    for i in moderate_indices:
+        if i not in strong_indices:
+            pid = paper_ids[i]
+            source_weights[pid] = source_weights.get(pid, 0) + 0.5
+
+    if source_weights:
+        max_weight = max(source_weights.values())
+        dominance_ratio = max_weight / effective_hits
+    else:
+        max_weight = 0
+        dominance_ratio = 0
+    distinct_effective_sources = len(source_weights)
+
+    top_scores = sorted(scores, reverse=True)[:15]
+    mean_score_topN = sum(top_scores) / len(top_scores)
+
+    ## Append
+    max_score_list.append(max_score)
+    mean_score_list.append(mean_score)
+    effective_hits_list.append(effective_hits)
+    dominance_ratio_list.append(dominance_ratio)
+    distinct_sources_list.append(distinct_effective_sources)
 
 
-
-q25 = np.percentile(effective_hits, 25)
-q50 = np.median(effective_hits)
-q75 = np.percentile(effective_hits, 75)
+q25 = np.percentile(effective_hits_list, 25)
+q50 = np.median(effective_hits_list)
+q75 = np.percentile(effective_hits_list, 75)
 
 params = {
     "q25": q25,
     "q50": q50,
     "q75": q75,
+    "observed_values": {
+        "max": max_score_list,
+        "mean": mean_score_list,
+        "hits": effective_hits_list,
+        "dominance": dominance_ratio_list,
+        "distinct_sources_hits": distinct_sources_list
+    }
 }
 
 # Choose a location in your project
