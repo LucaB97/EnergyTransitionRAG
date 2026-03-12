@@ -14,7 +14,7 @@ def needs_retry(semantic_alignment_score, evidence_flags):
     if semantic_alignment_score < 0.25 and not evidence_flags["absent"]:
         return True
 
-    if evidence_flags["isolated"] or evidence_flags["low_density"]:
+    if evidence_flags["isolated"]:
         return True
 
     return False 

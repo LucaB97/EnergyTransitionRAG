@@ -7,6 +7,15 @@ def semantic_norm(score, a, b):
     return 1 / (1 + math.exp(-a * (score - b)))
 
 
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
+def compute_contribution(abs_relevance, z, z_thr=0, kz=1.5):
+    rel_relevance = sigmoid(kz * (z - z_thr))
+    return abs_relevance * rel_relevance
+
+
 
 def evaluate_semantic_alignment(chunks, params, top_N):
     """
@@ -61,7 +70,132 @@ def explain_semantic(semantic_alignment):
 
 
 
-def evaluate_evidence_structure(chunks, params, hits_distribution):
+# def evaluate_evidence_structure(chunks, params, hits_distribution):
+#     """
+#     Evaluate the structural quality of retrieved evidence.
+
+#     A continuous score is computed, based on:
+#         - Density of high-relevance passages
+#         - Diversity of supporting sources
+#         - Balance of contribution across sources
+
+#     Parameters
+#     ----------
+#     chunks : list[dict]
+#         Retrieved passages, each containing:
+#             - final_score (float): Relevance score.
+#             - paper_id (str): Identifier of source document.
+
+#     floor : float, optional
+#         Minimum relevance threshold required to consider
+#         evidence present.
+
+#     Returns
+#     -------
+#     evidence_structure : float
+#         Continuous evidence structure score in [0, 1].
+
+#     flags : dict
+#         Diagnostic indicators describing structural properties
+#         (e.g., absent evidence, low diversity, source dominance).
+
+#     metrics : dict
+#         Detailed intermediate statistics used for analysis
+#         and debugging.
+
+#     strong_hit_chunks : list
+#     """
+
+#     if not chunks:
+#         return None, None, None, None
+    
+#     a, b = params["a"], params["b"]
+#     q25, q75 = hits_distribution["q25"], hits_distribution["q75"]
+
+#     scores = np.array([c["final_score"] for c in chunks])
+#     paper_ids = [c["paper_id"] for c in chunks]
+
+#     mean_score, std_score, max_score = scores.mean(), scores.std(), scores.max()
+
+#     # Z-normalization
+
+#     if std_score < 1e-6:
+#         z = np.zeros_like(scores)
+#     else:
+#         z = (scores - mean_score) / std_score
+
+
+#     # Hits
+
+#     abs_relevance = np.array([semantic_norm(s, a, b) for s in scores])
+#     strong_mask = (z > 1.5) & (abs_relevance > 0.7)
+#     moderate_mask = (z > 0.5) & (abs_relevance > 0.4)
+
+#     strong_indices = np.where(strong_mask)[0]
+#     moderate_indices = np.where(moderate_mask)[0]
+
+#     strong_hits, moderate_hits = len(strong_indices), len(moderate_indices)
+    
+#     pure_moderate_hits = max(0, moderate_hits - strong_hits)
+#     effective_hits = strong_hits + 0.5 * pure_moderate_hits
+
+
+#     # Dominance ratio
+        
+#     source_weights = {}
+
+#     for i in strong_indices:
+#         pid = paper_ids[i]
+#         source_weights[pid] = source_weights.get(pid, 0) + 1.0
+
+#     for i in moderate_indices:
+#         if i not in strong_indices:
+#             pid = paper_ids[i]
+#             source_weights[pid] = source_weights.get(pid, 0) + 0.5
+
+#     max_weight = max(source_weights.values())
+#     dominance_ratio = max_weight / effective_hits
+#     distinct_effective_sources = len(source_weights)
+
+#     # --------------------------
+#     # Evidence structure metrics
+#     # --------------------------
+    
+#     density_score = min(effective_hits / q75, 1.0)
+#     diversity_score = min(distinct_effective_sources / 3.0, 1.0)
+#     balance_score = 1.0 - dominance_ratio
+
+#     evidence_structure = 0.4 * density_score + 0.4 * diversity_score + 0.2 * balance_score
+#     evidence_structure = max(0.0, min(1.0, evidence_structure))
+
+#     flags = {
+#         "absent": effective_hits == 0,
+#         "isolated": effective_hits <= 2,
+#         "single_source_dominance": effective_hits >= 3 and distinct_effective_sources == 1,
+#         "low_density": effective_hits < q25,
+#         "low_diversity": distinct_effective_sources <= 2,
+#         "multiple_relevant_sources": effective_hits >= 3 and distinct_effective_sources > 2,
+#         "well_balanced": dominance_ratio < 0.6 and distinct_effective_sources > 2,
+#         "high_density": effective_hits > q75,
+#     }
+
+#     metrics = {
+#         "mean_score_global": round(mean_score,2),
+#         "std_score_global": round(std_score,2),
+#         "max_score": round(max_score,2),
+#         "moderate_hits": pure_moderate_hits,
+#         "strong_hits": strong_hits,
+#         "distinct_sources_hits": distinct_effective_sources,
+#         "dominance_ratio": round(dominance_ratio,2) if distinct_effective_sources >= 1 else None
+#     }
+
+#     strong_hit_chunks = [chunks[i] for i in strong_indices]
+
+#     return evidence_structure, flags, metrics, strong_hit_chunks
+
+
+
+def evaluate_evidence_structure(chunks, params, contributions_distr):
     """
     Evaluate the structural quality of retrieved evidence.
 
@@ -101,7 +235,8 @@ def evaluate_evidence_structure(chunks, params, hits_distribution):
         return None, None, None, None
     
     a, b = params["a"], params["b"]
-    q25, q75 = hits_distribution["q25"], hits_distribution["q75"]
+    q25, q75 = contributions_distr["contributions_per_query"]["q25"], contributions_distr["contributions_per_query"]["q75"]
+    min_contribution_threshold = contributions_distr["all_contributions"]["q25"]
 
     scores = np.array([c["final_score"] for c in chunks])
     paper_ids = [c["paper_id"] for c in chunks]
@@ -109,50 +244,29 @@ def evaluate_evidence_structure(chunks, params, hits_distribution):
     mean_score, std_score, max_score = scores.mean(), scores.std(), scores.max()
 
     # Z-normalization
-
     if std_score < 1e-6:
         z = np.zeros_like(scores)
     else:
         z = (scores - mean_score) / std_score
 
-
     # Hits
-
     abs_relevance = np.array([semantic_norm(s, a, b) for s in scores])
-    strong_mask = (z > 1.5) & (abs_relevance > 0.7)
-    moderate_mask = (z > 0.5) & (abs_relevance > 0.4)
+    contributions = compute_contribution(abs_relevance, z)
 
-    strong_indices = np.where(strong_mask)[0]
-    moderate_indices = np.where(moderate_mask)[0]
-
-    strong_hits, moderate_hits = len(strong_indices), len(moderate_indices)
-    
-    pure_moderate_hits = max(0, moderate_hits - strong_hits)
-    effective_hits = strong_hits + 0.5 * pure_moderate_hits
-
-
-    # Dominance ratio
-        
     source_weights = {}
-
-    for i in strong_indices:
-        pid = paper_ids[i]
-        source_weights[pid] = source_weights.get(pid, 0) + 1.0
-
-    for i in moderate_indices:
-        if i not in strong_indices:
+    for i, contrib in enumerate(contributions):
+        if contrib > min_contribution_threshold:
             pid = paper_ids[i]
-            source_weights[pid] = source_weights.get(pid, 0) + 0.5
+            source_weights[pid] = source_weights.get(pid, 0) + contrib
 
-    max_weight = max(source_weights.values())
-    dominance_ratio = max_weight / effective_hits
+    relevant_mass = sum(contributions)
+    dominance_ratio = max(source_weights.values()) / relevant_mass
     distinct_effective_sources = len(source_weights)
 
     # --------------------------
     # Evidence structure metrics
     # --------------------------
-    
-    density_score = min(effective_hits / q75, 1.0)
+    density_score = min(relevant_mass / q75, 1.0)
     diversity_score = min(distinct_effective_sources / 3.0, 1.0)
     balance_score = 1.0 - dominance_ratio
 
@@ -160,27 +274,25 @@ def evaluate_evidence_structure(chunks, params, hits_distribution):
     evidence_structure = max(0.0, min(1.0, evidence_structure))
 
     flags = {
-        "absent": effective_hits == 0,
-        "isolated": effective_hits <= 2,
-        "single_source_dominance": effective_hits >= 3 and distinct_effective_sources == 1,
-        "low_density": effective_hits < q25,
+        "absent": relevant_mass < min_contribution_threshold,  # nothing meaningful
+        "isolated": relevant_mass < q25,
+        "single_source_dominance": distinct_effective_sources == 1 and relevant_mass > q25,
         "low_diversity": distinct_effective_sources <= 2,
-        "multiple_relevant_sources": effective_hits >= 3 and distinct_effective_sources > 2,
+        "multiple_relevant_sources": distinct_effective_sources > 2 and relevant_mass > q25,
         "well_balanced": dominance_ratio < 0.6 and distinct_effective_sources > 2,
-        "high_density": effective_hits > q75,
+        "high_density": relevant_mass > q75,
     }
 
     metrics = {
         "mean_score_global": round(mean_score,2),
         "std_score_global": round(std_score,2),
         "max_score": round(max_score,2),
-        "moderate_hits": pure_moderate_hits,
-        "strong_hits": strong_hits,
+        "relevant_mass": relevant_mass,
         "distinct_sources_hits": distinct_effective_sources,
         "dominance_ratio": round(dominance_ratio,2) if distinct_effective_sources >= 1 else None
     }
 
-    strong_hit_chunks = [chunks[i] for i in strong_indices]
+    strong_hit_chunks = []
 
     return evidence_structure, flags, metrics, strong_hit_chunks
 

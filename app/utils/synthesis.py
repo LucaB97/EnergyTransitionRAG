@@ -67,7 +67,7 @@ content:
         for attempt in range(1, self.max_attempts + 1):
             
             if attempt > 1:
-                prompt = prompt + "\n\nREMINDER: Return ONLY valid JSON."
+                prompt = prompt + f"\n\nYour synthesis produced the following error:\n{last_error}.\n\nREMINDER: Return ONLY valid JSON, according to the provided schema."
             
             raw_output = self.llm.generate(prompt)
 

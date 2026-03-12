@@ -162,7 +162,7 @@ def query_endpoint(request: QueryRequest, req: Request):
 
     semantic_alignment = evaluate_semantic_alignment(reranked_chunks, profiling_params, top_N)
     
-    evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks, profiling_params, effective_hits_distribution)
+    evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks[:top_N], profiling_params, effective_hits_distribution)
 
     #
     # --- Retrieval retry ---
@@ -203,7 +203,7 @@ def query_endpoint(request: QueryRequest, req: Request):
 
             semantic_alignment = evaluate_semantic_alignment(reranked_chunks, profiling_params, top_N)
     
-            evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks, profiling_params, effective_hits_distribution)
+            evidence_structure, evidence_flags, evidence_meta, strong_chunks = evaluate_evidence_structure(reranked_chunks[:top_N], profiling_params, effective_hits_distribution)
 
 
     for chunk in strong_chunks:
@@ -346,7 +346,7 @@ def query_endpoint(request: QueryRequest, req: Request):
         limitations=["The system was unable to generate a reliable answer this time. Please try again."]
         meta["errors"]["generation_error"] = True
         meta["errors"]["total_attempts"] = synthesizer.max_attempts
-        meta["errors"]["last_error"] = last_error
+        meta["errors"]["last_error"] = str(last_error)
         confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_flags, 
                                                          reason="Grounding score is absent because the synthesis generation failed")
         return build_response(query, pipeline_status, limitations, meta=meta, 
