@@ -1,4 +1,9 @@
 {
+  "normalization_params": {
+    "a": 0.7528991736631868,
+    "b": 0.46044912934303284,
+    "std_global": 2.3675714211128063
+  },
   "contributions_per_query": {
     "q10": 1.3700174479070228,
     "q25": 2.7469159531056304,
@@ -43,7 +48,7 @@
     "q25": 0.0626369380384986,
     "q50": 0.18530006497993218
   },
-  "distinct_effective_sources_per_query": {
+  "effective_sources_per_query": {
     "q10": 3.0,
     "q25": 4.0,
     "q50": 5.0,

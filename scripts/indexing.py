@@ -17,15 +17,24 @@ embedding = args.embedding
 if chunk_size is None or overlap is None:
     chunk_size = 500
     overlap = 100
+
+if embedding is None:
+    strategy = "openai"
     
-chunks_json = f"data/chunks_{chunk_size}t_{overlap}o.json"
+if overlap >= chunk_size:
+    raise ValueError("Overlap must be smaller than chunk size.")
 
 if embedding == "hf":
     strategy = hf_embedding
     path = f"data/faiss_hf_{chunk_size}t_{overlap}o.index"
-else:
+elif embedding == "openai":
     strategy = openai_embedding
     path = f"data/faiss_openai_{chunk_size}t_{overlap}o.index"
+else:
+    raise ValueError("Embedding strategy must be \"hf\" or \"openai\"")
+
+
+chunks_json = f"data/chunks_{chunk_size}t_{overlap}o.json"
 
 with open(chunks_json, "r", encoding="utf-8") as f:
     chunks = json.load(f)

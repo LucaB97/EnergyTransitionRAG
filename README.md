@@ -35,8 +35,8 @@ pip install -r requirements.txt
 - Collect open-access research papers in PDF format on the topic.
 - Create a `metadata.csv` file summarizing each paper: ID, title, year, publishing journal.
 
-### Phase 1: Document Processing
-`python -m scripts.document_processing`
+### Phase 1: Document Processing & Extraction, Chunking
+`python -m scripts.extraction --chunk-size 500 --overlap 100`
 - Convert PDFs to text.
 - Remove common headers, footers, and references.
 - Normalize whitespace.
@@ -44,7 +44,10 @@ pip install -r requirements.txt
 - Save chunks in JSON format with metadata: chunk ID, paper ID, title, year.
 
 ### Phase 2: Embeddings & Indexing
-`python -m scripts.build_index`
+`python -m scripts.indexing --chunk-size 500 --overlap 100 --embedding openai`
+
+### Phase 3: Parameters tuning
+`python -m scripts.tuning --chunk-size 500 --overlap 100 --embedding openai` 
 
 ### Phase 3: Semantic Retrieval & LLM-Based Summarization (RAG)
 `python -m scripts.test___retrieval_and_synthesis`
