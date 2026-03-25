@@ -18,5 +18,4 @@ pydantic>=2.10.6
 typing>=3.7.4.3
 streamlit>=1.40.1
 
-
-matplotlib>=3.7.5
+scipy>=1.10.1

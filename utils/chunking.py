@@ -42,3 +42,15 @@ def create_chunks(text, metadata, idx, chunk_size=400, overlap=50):
         data.append(new_entry)
 
     return data
+
+
+def deduplicate(chunks):
+    seen = set()
+    unique = []
+
+    for chunk in chunks:
+        if chunk["chunk_id"] not in seen:
+            unique.append(chunk)
+            seen.add(chunk["chunk_id"])
+
+    return unique
