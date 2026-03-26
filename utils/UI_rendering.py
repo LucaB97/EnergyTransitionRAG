@@ -273,40 +273,40 @@ def show_sources(data, citation_style=CitationStyle.NUMERIC):
 
 ### Grounding metrics
 
-def show_grounding_metrics(data):
-    metrics = data.get("grounding_metrics")
-
-    if metrics is not None:
-        with st.expander("Grounding Metrics (advanced)", expanded=False):
+def show_grounding_metrics(metrics):
             
-            if not metrics:
-                st.info("Grounding metrics are unavailable for this response.")
-            
-            else:
-                col1, col2, col3 = st.columns(3)
+    if metrics:
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("Grounding metrics")
 
-                with col1:
-                    st.metric("Available chunks", metrics.get('available_chunks', 0))
-                    st.metric("Used chunks", metrics.get('used_chunks', 0))
-                    st.metric(
-                        "Chunk coverage",
-                        f"{metrics.get('chunk_coverage', 0):.0%}"
-                    )
+        col1, col2, col3 = st.columns(3)
 
-                with col2:
-                    st.metric("Available papers", metrics.get('available_papers', 0))
-                    st.metric("Used papers", metrics.get('used_papers', 0))
-                    st.metric("Paper dominance", metrics.get('paper_dominance', 0))
+        with col1:
+            st.metric("Available chunks", metrics.get('available_chunks', 0))
+            st.metric("Used chunks", metrics.get('used_chunks', 0))
+            st.metric(
+                "Chunk coverage",
+                f"{metrics.get('chunk_coverage', 0):.0%}"
+            )
 
-                with col3:
-                    st.metric(
-                        "Avg citations / sentence",
-                        metrics.get('avg_citations_per_sentence', 0)
-                    )
-                    st.metric(
-                        "Multi-source sentences",
-                        f"{metrics.get('multi_source_sentence_ratio', 0):.0%}"
-                    )
+        with col2:
+            st.metric("Available papers", metrics.get('available_papers', 0))
+            st.metric("Used papers", metrics.get('used_papers', 0))
+            st.metric("Paper dominance", metrics.get('paper_dominance', 0))
+
+        with col3:
+            st.metric(
+                "Avg citations / sentence",
+                metrics.get('avg_citations_per_sentence', 0)
+            )
+            st.metric(
+                "Multi-source sentences",
+                f"{metrics.get('multi_source_sentence_ratio', 0):.0%}"
+            )
+    
+    else:
+        st.info("Grounding metrics are unavailable for this response.")
 
 ### Trace
 
@@ -318,6 +318,7 @@ def show_trace(data):
     
     if trace and show_trace:
         st.markdown("---")
+        
         ## Query expansion
         query_expansion = trace.get("query_expansion", None)
         
@@ -326,17 +327,12 @@ def show_trace(data):
             st.subheader("Query expansion")
             st.markdown(f"**Original query:**\n{query_expansion[0]}")
             st.markdown(f"**Expanded query:**\n{query_expansion[1]}")
-        
-        ## Strong hit chunks
-        strong_hits = trace.get("strong_hit_chunks", None)
-        
-        if strong_hits:
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.subheader(f"Strong hit chunks: {len(strong_hits)}")
-            for chunk in strong_hits:
-                with st.expander(f"From: **{chunk['title']}** ({chunk['year']})", expanded=False):
-                    st.markdown(f"{chunk['text']}")
 
+
+        ## Grounding metrics
+        metrics = trace.get("grounding_metrics", [])
+        show_grounding_metrics(metrics)
+            
         ## Evidence usage
         chunks = trace.get("chunks_provided_to_synthesizer", [])
         papers = trace.get("paper_stats", [])   

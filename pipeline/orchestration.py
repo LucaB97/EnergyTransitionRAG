@@ -200,7 +200,7 @@ class RAGPipeline:
             trace={
                 "query_expansion": queries,
                 }
-            return build_query_response(query, pipeline_status, limitations, meta=meta, evidence_structure=evidence_meta, confidence=confidence_profile, trace=trace)   
+            return build_query_response(query, pipeline_status, limitations, meta=meta, confidence=confidence_profile, trace=trace)   
 
         #
         # --- Synthesis ---
@@ -266,8 +266,7 @@ class RAGPipeline:
                 trace={
                 "query_expansion": queries,
                 }
-                return build_query_response(query, pipeline_status, limitations, meta=meta, 
-                                    evidence_structure=evidence_meta, confidence=confidence_profile, trace=trace)   
+                return build_query_response(query, pipeline_status, limitations, meta=meta, confidence=confidence_profile, trace=trace)   
 
             ## Evidence metrics
             sentence_papers = extract_sentence_paper_ids(synthesis_output["answer"], source_lookup)
@@ -307,7 +306,7 @@ class RAGPipeline:
                     "Retrying synthesis due to weak grounding",
                     extra={"grounding_metrics": grounding_metrics}
                 )
-                prompt = TASK_HEADER + RETRY_PROMPTS[retry_reason] + CORE_SYNTHESIS_INSTRUCTIONS
+                prompt = TASK_HEADER + CORE_SYNTHESIS_INSTRUCTIONS + RETRY_PROMPTS[retry_reason]
                 continue
             else:
                 break  # synthesis accepted
@@ -326,8 +325,7 @@ class RAGPipeline:
             meta["errors"]["last_error"] = str(last_error)
             confidence_profile = evaluate_confidence_profile(pipeline_status, semantic_alignment, evidence_structure, evidence_meta, evidence_flags, 
                                                             reason="Grounding score is absent because the synthesis generation failed")
-            return build_query_response(query, pipeline_status, limitations, meta=meta, 
-                                evidence_structure=evidence_meta, confidence=confidence_profile)  
+            return build_query_response(query, pipeline_status, limitations, meta=meta, confidence=confidence_profile)  
 
         #
         # --- Output preparation ---
@@ -345,6 +343,7 @@ class RAGPipeline:
 
         trace={
             "query_expansion": queries,
+            "grounding_metrics": best_grounding_metrics,
             "chunks_provided_to_synthesizer": best_aggregation["chunks"],
             "paper_stats": [
                 {"paper_id": pid, **stats}
@@ -353,5 +352,4 @@ class RAGPipeline:
         }
 
         return build_query_response(query, pipeline_status, limitations=best_output["limitations"], answer=[Sentence(**s) for s in resolved_answer], 
-                            sources=sources, meta=meta, evidence_structure=evidence_meta, grounding_metrics=best_grounding_metrics,
-                            confidence=best_confidence, trace=trace)
+                            sources=sources, meta=meta, confidence=best_confidence, trace=trace)

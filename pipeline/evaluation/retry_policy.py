@@ -84,7 +84,7 @@ def reason_retry_grounding(metrics):
         and metrics["used_papers"] >= 3
     ):
         failures["no_corroboration"] = 0.75
-
+    
     if not failures:
         return None
 

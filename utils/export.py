@@ -110,7 +110,7 @@ def export_output(data):
             if export_format == "JSON":
                 has_trace = bool(data.get("trace"))
                 include_trace = st.checkbox(
-                    "Include diagnostic info (chunks usage)",
+                    "Include diagnostic info",
                     value=False,
                     disabled=not has_trace
                 )

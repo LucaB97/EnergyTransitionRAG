@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 
 from schemas.source import Source
-from schemas.confidence import GroundingMetrics, ConfidenceProfile
+from schemas.confidence import ConfidenceProfile
 from schemas.trace import AnalysisTrace 
 
 
@@ -46,10 +46,6 @@ class QueryResponse(BaseModel):
         default_factory=dict,
         description="Additional metadata about retrieval and synthesis"
     )
-    
-    evidence_structure: Optional[Dict] = None
-    
-    grounding_metrics: Optional[GroundingMetrics] = None
     
     confidence: Optional[ConfidenceProfile] = Field(
         default=None,

@@ -7,8 +7,6 @@ def build_query_response(
     answer=None,
     sources=None,
     meta=None,
-    evidence_structure=None,
-    grounding_metrics=None,
     confidence=None,
     trace=None
 ):
@@ -19,8 +17,6 @@ def build_query_response(
         limitations=limitations,
         sources=sources or [],
         meta=meta or {},
-        evidence_structure=evidence_structure,
-        grounding_metrics=grounding_metrics,
         confidence=confidence,
         trace=trace
     )

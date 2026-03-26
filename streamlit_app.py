@@ -115,7 +115,7 @@ data = st.session_state.get("data")
 if data:
     with answer_placeholder.container():
         st.markdown("---")
-        
+
         # ---------------------------------------------------------------------
         # Pipeline failures handling
         # ---------------------------------------------------------------------
@@ -190,7 +190,7 @@ if data:
         # ---------------------------------------------------------------------
         # Grounding Metrics
         # ---------------------------------------------------------------------
-        show_grounding_metrics(data)
+        # show_grounding_metrics(data)
 
         # ---------------------------------------------------------------------
         # Debug panel (sidebar-controlled)
