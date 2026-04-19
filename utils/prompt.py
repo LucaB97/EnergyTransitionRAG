@@ -36,6 +36,166 @@ Question:
 """
 
 
+SINGLE_RELEVANCE_JUDGE_PROMPT = """
+You are evaluating the relevance of a passage for answering a user query.
+
+TASK:
+Assign a relevance score to the passage, based on how useful it is for answering the query.
+
+SCORING RULES:
+
+* 2 = Highly relevant
+  The passage directly addresses the query or provides strong, specific evidence useful for answering it.
+
+* 1 = Partially relevant
+  The passage is related to the query but is incomplete, indirect, too general, or only weakly useful.
+
+* 0 = Not relevant
+  The passage does not address the query or is only loosely related without useful information.
+
+IMPORTANT GUIDELINES:
+* Do NOT mark a passage as relevant just because it shares keywords.
+* Focus on usefulness for answering the query, not just topic similarity.
+* When unsure between two scores, always choose the LOWER score.
+
+OUTPUT FORMAT (STRICT):
+Return ONLY a single integer:
+0 or 1 or 2
+
+NO explanation. NO extra text.
+
+---
+
+QUERY:
+{{query}}
+
+---
+
+PASSAGE:
+{{passage}}
+
+"""
+
+
+GROUP_RELEVANCE_JUDGE_PROMPT = """
+You are evaluating the relevance of a set of passages for answering a user query.
+
+TASK:
+Assign a relevance score to each passage independently, based on how useful it is for answering the query.
+
+SCORING RULES:
+
+* 2 = Highly relevant
+  The passage directly addresses the query or provides strong, specific evidence useful for answering it.
+
+* 1 = Partially relevant
+  The passage is related to the query but is incomplete, indirect, too general, or only weakly useful.
+
+* 0 = Not relevant
+  The passage does not address the query or is only loosely related without useful information.
+
+IMPORTANT GUIDELINES:
+* Do NOT mark a passage as relevant just because it shares keywords.
+* Focus on usefulness for answering the query, not just topic similarity.
+* When unsure between two scores, always choose the LOWER score.
+* Do NOT try to distribute scores evenly. Each passage must be evaluated independently.
+
+OUTPUT FORMAT (STRICT):
+Return ONLY a JSON list of integers (0, 1, or 2), one per passage, in the same order.
+
+NO explanation. NO extra text.
+
+---
+
+QUERY:
+{{query}}
+
+---
+
+PASSAGES:
+{{passages}}
+
+"""
+
+
+SINGLE_RELEVANCE_JUDGE_PROMPT_BIN = """
+You are evaluating whether a passage is relevant to a user query.
+
+TASK:
+Given a query and a passage, decide if the passage is useful for answering the query.
+
+SCORING RULE:
+
+1 = Relevant  
+0 = Not relevant
+
+DEFINITION OF RELEVANT:
+The passage contains information that helps answer the query, even partially.
+
+IMPORTANT RULES:
+- Be strict
+- Ignore keyword overlap alone
+- Focus on usefulness for answering the query
+- If unsure, choose 0
+
+OUTPUT FORMAT (STRICT):
+Return ONLY a single integer:
+0 or 1
+
+NO explanation. NO extra text.
+
+---
+
+QUERY:
+{{query}}
+
+---
+
+PASSAGE:
+{{passage}}
+
+"""
+
+
+GROUP_RELEVANCE_JUDGE_PROMPT_BIN = """
+You are evaluating the relevance of a set of passages for answering a user query.
+
+TASK:
+Assign a relevance score to each passage independently, based on how useful it is for answering the query.
+
+SCORING RULE:
+
+1 = Relevant: the passage contains VERY VALUABLE information to answer the query.
+0 = Not relevant: the information in the passage is indirect, too general, or only weakly useful.
+
+IMPORTANT RULES:
+- BE STRICT
+- Do NOT mark a passage as relevant just because it shares keywords.
+- Focus on usefulness for answering the query, not just topic similarity.
+- If unsure, choose 0.
+- Do NOT try to distribute scores evenly. Each passage must be evaluated independently.
+- Do NOT assume earlier passages are more relevant.
+
+OUTPUT FORMAT (STRICT):
+Return ONLY a JSON list of integers (0 or 1), one per passage:
+[is_relevant(query, passage_1) = 0|1, ..., is_relevant(query, passage_N) = 0|1]
+
+NO explanation. NO extra text.
+
+REMINDER:
+EVALUATE EACH PASSAGE AGAINST THE QUERY INDEPENDENTLY FROM THE OTHER PASSAGES.
+---
+
+QUERY:
+{{query}}
+
+---
+
+PASSAGES:
+{{passages}}
+
+"""
+
 
 QUERY_EXPANDER_PROMPT = """
 You reformulate research questions to improve retrieval in academic databases.
@@ -62,7 +222,6 @@ You MUST return the query reformulations as a list, using this format:
 Original query:
 {{QUESTION}}
 """
-
 
 
 TASK_HEADER = """

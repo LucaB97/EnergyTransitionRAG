@@ -155,12 +155,16 @@ if data:
         confidence = data["confidence"]
 
         if confidence["status"] == "Not applicable":
-            if confidence["reason"] == "Absent evidence":
-                show_limitations(data, case="absent_evidence")
-            elif confidence["reason"] == "Abstention":
+            # if confidence["reason"] == "Absent evidence":
+            #     show_limitations(data, case="absent_evidence")
+            if confidence["reason"] == "Abstention":
                 show_limitations(data, case="abstention")
-            show_metadata(data)
-            show_queries(data)
+                st.markdown("<br>", unsafe_allow_html=True)
+                show_metadata(data)
+                show_queries(data)
+                st.markdown("---")
+                st.subheader("Export")
+                export_output(data)
             st.stop()
 
         # ---------------------------------------------------------------------
@@ -170,7 +174,7 @@ if data:
         
         citation_style = CitationStyle.NUMERIC
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        # st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("Synthesized Answer")
 
         for item in data.get("answer", []):

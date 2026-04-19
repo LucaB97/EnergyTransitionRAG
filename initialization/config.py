@@ -31,7 +31,7 @@ class InitializationConfig:
 DEFAULT_CONFIG = InitializationConfig(
     chunk_size=500,
     overlap=100,
-    embedding="hf",
+    embedding="openai",
     topN=15,
     auto_build=True,
     normalize_query_lexical=True, #recommended to improve system stability for similar queries

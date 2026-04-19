@@ -40,11 +40,11 @@ def initialize_system(config: InitializationConfig):
         build_index_pipeline(config, chunks_path, index_path)
 
     # --- Step 3: tuning ---
-    if not params_path.exists():
-        if not config.auto_build:
-            raise RuntimeError("Missing parameters and auto_build is disabled")
-        print("Running PARAMETERS TUNING")
-        run_tuning(config, chunks_path, index_path, params_path)
+    # if not params_path.exists():
+    #     if not config.auto_build:
+    #         raise RuntimeError("Missing parameters and auto_build is disabled")
+    #     print("Running PARAMETERS TUNING")
+    #     run_tuning(config, chunks_path, index_path, params_path)
 
     return {
         "metadata_path": metadata_path,

@@ -25,6 +25,7 @@ class QueryResponse(BaseModel):
         "success",
         "out_of_scope",
         "retrieval_failed",
+        "relevance_evaluation_error",
         "generation_error"
     ] = Field(
         description="Technical execution status of the pipeline"

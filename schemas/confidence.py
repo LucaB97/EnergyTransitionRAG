@@ -13,14 +13,29 @@ class AxisProfile(BaseModel):
     ] = None
 
 
+# class ConfidenceProfile(BaseModel):
+#     semantic: AxisProfile = Field(
+#         default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
+#         description="Semantic alignment of evidence to query"
+#     )
+#     evidence: AxisProfile = Field(
+#         default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
+#         description="Evidence structure strength"
+#     )
+#     grounding: AxisProfile = Field(
+#         default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
+#         description="Grounding quality of the synthesis"
+#     )
+#     status: Literal["Success", "Not applicable"]
+#     reason: Optional[str] = Field(
+#         default="",
+#         description="Reason for \"Not applicable\" status"
+#     )
+
 class ConfidenceProfile(BaseModel):
-    semantic: AxisProfile = Field(
-        default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
-        description="Semantic alignment of evidence to query"
-    )
     evidence: AxisProfile = Field(
         default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
-        description="Evidence structure strength"
+        description="Judgement of relevance of the evidence to the query"
     )
     grounding: AxisProfile = Field(
         default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
@@ -31,7 +46,6 @@ class ConfidenceProfile(BaseModel):
         default="",
         description="Reason for \"Not applicable\" status"
     )
-
 
 class GroundingMetrics(BaseModel):
     available_chunks: int

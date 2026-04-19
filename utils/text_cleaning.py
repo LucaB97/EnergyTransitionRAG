@@ -121,3 +121,16 @@ def remove_headers_footers(pages_lines, threshold=0.6, n_lines=2):
         cleaned_pages.append(cleaned)
 
     return cleaned_pages
+
+
+def clean_llm_output(output: str) -> str:
+        output = output.strip()
+
+        if output.startswith("```"):
+            # remove first ```
+            output = output.split("```", 1)[1]
+            # remove optional "json"
+            output = output.lstrip("json").strip()
+            # remove last ```
+            output = output.rsplit("```", 1)[0].strip()
+        return output

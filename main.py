@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 
-from dependencies import load_system
+from dependencies2 import load_system
 from schemas.request import QueryRequest
 from schemas.response import QueryResponse
 

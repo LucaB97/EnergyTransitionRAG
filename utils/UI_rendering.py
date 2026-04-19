@@ -37,7 +37,6 @@ def format_explanation(expl):
 def render_confidence_profile(confidence):
 
     st.subheader("Confidence Profile")
-    semantic = confidence["semantic"]
     evidence = confidence["evidence"]
     grounding = confidence["grounding"]
 
@@ -119,50 +118,24 @@ def render_confidence_profile(confidence):
     </style>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3, gap="large")
-    semantic_caption = "How closely the top retrieved passages match the query"
-    evidence_caption = "How much relevant evidence is retrieved and how it is distributed"
+    col1, col2 = st.columns(2, gap="large")
+    evidence_caption = "Share of retrieved passages judged relevant to the query"
     grounding_caption = "How well the answer integrates and balances the cited evidence"
 
-    # ---- Semantic alignment ----
-    with col1:
-        # semantic_tooltip = format_explanation(semantic["explanation"])
-
-        st.markdown(f"""
-        <div class="confidence-metric">
-            <div class="metric-label">
-                Semantic alignment
-            </div>
-            <div class="metric-caption">
-                {semantic_caption}
-            </div>
-            <div class="metric-value">
-                {semantic['score']:.2f}  
-            </div>
-            <div class="confidence-level"
-                 style="color:{level_colors[semantic['level']]}">
-                 {semantic['level']}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
     # ---- Evidence structure ----
-    with col2:
-        evidence_tooltip = format_explanation(evidence["explanation"])
+    with col1:
 
         st.markdown(f"""
         <div class="confidence-metric">
             <div class="metric-label">
-                Evidence structure
+                Evidence Relevance
             </div>
             <div class="metric-caption">
                 {evidence_caption}
             </div>
             <div class="metric-value">
                 {evidence['score']:.2f}
-                <span class="tooltip">ⓘ
-                    <span class="tooltiptext">{evidence_tooltip}</span>
-                </span>
             </div>
             <div class="confidence-level"
                  style="color:{level_colors[evidence['level']]}">
@@ -172,7 +145,7 @@ def render_confidence_profile(confidence):
         """, unsafe_allow_html=True)
 
     # ---- Grounding quality ----
-    with col3:
+    with col2:
         grounding_tooltip = format_explanation(grounding["explanation"])
 
         st.markdown(f"""
@@ -196,8 +169,173 @@ def render_confidence_profile(confidence):
         </div>
         """, unsafe_allow_html=True)
 
-    if semantic['score'] < 0.5:
-        st.warning("⚠️ Retrieved evidence is weakly aligned with the query")
+    if evidence['score'] < 0.3:
+        st.warning("⚠️ Limited relevant evidence found — the answer may be incomplete.")
+
+# def render_confidence_profile(confidence):
+
+#     st.subheader("Confidence Profile")
+#     semantic = confidence["semantic"]
+#     evidence = confidence["evidence"]
+#     grounding = confidence["grounding"]
+
+#     level_colors = {
+#         "Strong": "#007acc",
+#         "Moderate": "#a17fcf",
+#         "Weak": "#888888",
+#         "Not_applicable": "#aaaaaa"
+#     }
+
+#     st.markdown("""
+#     <style>
+#     .confidence-metric {
+#         margin-bottom: 1.5rem;
+#     }
+
+#     .metric-label {
+#         font-size: 0.9rem;
+#         margin-bottom: 0.2rem;
+#         font-weight: 600;
+#     }
+
+#     .metric-caption {
+#         font-size: 0.75rem;
+#         color: #666;
+#         margin-bottom: 0.5rem;
+#     }
+
+#     .metric-value {
+#         font-size: 2.1rem;
+#         font-weight: 600;
+#         line-height: 1.1;
+#         margin: 0;
+#     }
+
+#     .confidence-level {
+#         font-size: 0.95rem;
+#         font-weight: 600;
+#         margin-top: 0.25rem;
+#     }
+
+#     .tooltip {
+#         position: relative;
+#         display: inline-block;
+#         cursor: pointer;
+#         margin-left: 6px;
+#         color: #999;
+#         font-weight: 600;
+#         font-size: 0.8rem;   /* <-- add this */
+#         vertical-align: middle;  /* optional, improves alignment */
+#     }
+
+#     .tooltip .tooltiptext {
+#         visibility: hidden;
+#         width: 260px;
+#         background-color: #f9f9f9;
+#         color: #333;
+#         text-align: left;
+#         border-radius: 6px;
+#         padding: 10px;
+#         position: absolute;
+#         z-index: 1;
+#         top: 125%;
+#         left: 50%;
+#         margin-left: -130px;
+#         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+#         font-size: 0.8rem;
+#         font-weight: 400;
+#     }
+
+#     .tooltip:hover .tooltiptext {
+#         visibility: visible;
+#     }
+
+#     .tooltiptext ul {
+#         padding-left: 18px;
+#         margin: 0;
+#     }
+#     </style>
+#     """, unsafe_allow_html=True)
+
+#     col1, col2, col3 = st.columns(3, gap="large")
+#     semantic_caption = "How closely the top retrieved passages match the query"
+#     evidence_caption = "How much relevant evidence is retrieved and how it is distributed"
+#     grounding_caption = "How well the answer integrates and balances the cited evidence"
+
+#     # ---- Semantic alignment ----
+#     with col1:
+#         # semantic_tooltip = format_explanation(semantic["explanation"])
+
+#         st.markdown(f"""
+#         <div class="confidence-metric">
+#             <div class="metric-label">
+#                 Semantic alignment
+#             </div>
+#             <div class="metric-caption">
+#                 {semantic_caption}
+#             </div>
+#             <div class="metric-value">
+#                 {semantic['score']:.2f}  
+#             </div>
+#             <div class="confidence-level"
+#                  style="color:{level_colors[semantic['level']]}">
+#                  {semantic['level']}
+#             </div>
+#         </div>
+#         """, unsafe_allow_html=True)
+
+#     # ---- Evidence structure ----
+#     with col2:
+#         evidence_tooltip = format_explanation(evidence["explanation"])
+
+#         st.markdown(f"""
+#         <div class="confidence-metric">
+#             <div class="metric-label">
+#                 Evidence structure
+#             </div>
+#             <div class="metric-caption">
+#                 {evidence_caption}
+#             </div>
+#             <div class="metric-value">
+#                 {evidence['score']:.2f}
+#                 <span class="tooltip">ⓘ
+#                     <span class="tooltiptext">{evidence_tooltip}</span>
+#                 </span>
+#             </div>
+#             <div class="confidence-level"
+#                  style="color:{level_colors[evidence['level']]}">
+#                  {evidence['level']}
+#             </div>
+#         </div>
+#         """, unsafe_allow_html=True)
+
+#     # ---- Grounding quality ----
+#     with col3:
+#         grounding_tooltip = format_explanation(grounding["explanation"])
+
+#         st.markdown(f"""
+#         <div class="confidence-metric">
+#             <div class="metric-label">
+#                 Grounding quality
+#             </div>
+#             <div class="metric-caption">
+#                 {grounding_caption}                                    
+#             </div>
+#             <div class="metric-value">
+#                 {grounding['score']:.2f}
+#                 <span class="tooltip">ⓘ
+#                     <span class="tooltiptext">{grounding_tooltip}</span>
+#                 </span>
+#             </div>
+#             <div class="confidence-level"
+#                  style="color:{level_colors[grounding['level']]}">
+#                  {grounding['level']}
+#             </div>
+#         </div>
+#         """, unsafe_allow_html=True)
+
+#     if semantic['score'] < 0.5:
+#         st.warning("⚠️ Retrieved evidence is weakly aligned with the query")
 
 
 ### Citations

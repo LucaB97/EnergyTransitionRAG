@@ -1,5 +1,5 @@
 import json
-
+from utils.text_cleaning import clean_llm_output
 
 class ResearchSynthesisEngine:
     """
@@ -71,16 +71,12 @@ content:
                     prompt += f"\nPrevious error: {str(last_error)}"
 
             raw_output = self.llm.generate(prompt)
+            output = clean_llm_output(raw_output)
 
             try:
-                return self._validate_output(raw_output)
+                return self._validate_output(output)
 
             except Exception as e:
                 last_error = e
 
         raise ValueError(last_error)
-        # raise ValueError(
-        #     "LLM failed to produce valid structured output "
-        #     f"after {self.max_attempts} attempts. "
-        #     f"Last error: {str(last_error)}"
-        # )

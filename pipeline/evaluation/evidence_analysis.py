@@ -1,12 +1,15 @@
 from collections import defaultdict
 
-def aggregate_evidence(relevant_chunks, used_chunk_ids):
+def aggregate_evidence(relevant_chunks, used_chunk_ids=None):
     """
     Aggregate evidence at chunk and paper level.
     This is the single source of truth for evidence statistics.
     Useful for UI, observability, and automatic decisions (retry / confidence).
     """
 
+    if used_chunk_ids is None:
+        used_chunk_ids = set()
+        
     chunks = []
     paper_stats = defaultdict(lambda: {
         "chunks_retrieved": 0,
