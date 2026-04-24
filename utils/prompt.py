@@ -36,128 +36,7 @@ Question:
 """
 
 
-SINGLE_RELEVANCE_JUDGE_PROMPT = """
-You are evaluating the relevance of a passage for answering a user query.
-
-TASK:
-Assign a relevance score to the passage, based on how useful it is for answering the query.
-
-SCORING RULES:
-
-* 2 = Highly relevant
-  The passage directly addresses the query or provides strong, specific evidence useful for answering it.
-
-* 1 = Partially relevant
-  The passage is related to the query but is incomplete, indirect, too general, or only weakly useful.
-
-* 0 = Not relevant
-  The passage does not address the query or is only loosely related without useful information.
-
-IMPORTANT GUIDELINES:
-* Do NOT mark a passage as relevant just because it shares keywords.
-* Focus on usefulness for answering the query, not just topic similarity.
-* When unsure between two scores, always choose the LOWER score.
-
-OUTPUT FORMAT (STRICT):
-Return ONLY a single integer:
-0 or 1 or 2
-
-NO explanation. NO extra text.
-
----
-
-QUERY:
-{{query}}
-
----
-
-PASSAGE:
-{{passage}}
-
-"""
-
-
-GROUP_RELEVANCE_JUDGE_PROMPT = """
-You are evaluating the relevance of a set of passages for answering a user query.
-
-TASK:
-Assign a relevance score to each passage independently, based on how useful it is for answering the query.
-
-SCORING RULES:
-
-* 2 = Highly relevant
-  The passage directly addresses the query or provides strong, specific evidence useful for answering it.
-
-* 1 = Partially relevant
-  The passage is related to the query but is incomplete, indirect, too general, or only weakly useful.
-
-* 0 = Not relevant
-  The passage does not address the query or is only loosely related without useful information.
-
-IMPORTANT GUIDELINES:
-* Do NOT mark a passage as relevant just because it shares keywords.
-* Focus on usefulness for answering the query, not just topic similarity.
-* When unsure between two scores, always choose the LOWER score.
-* Do NOT try to distribute scores evenly. Each passage must be evaluated independently.
-
-OUTPUT FORMAT (STRICT):
-Return ONLY a JSON list of integers (0, 1, or 2), one per passage, in the same order.
-
-NO explanation. NO extra text.
-
----
-
-QUERY:
-{{query}}
-
----
-
-PASSAGES:
-{{passages}}
-
-"""
-
-
-SINGLE_RELEVANCE_JUDGE_PROMPT_BIN = """
-You are evaluating whether a passage is relevant to a user query.
-
-TASK:
-Given a query and a passage, decide if the passage is useful for answering the query.
-
-SCORING RULE:
-
-1 = Relevant  
-0 = Not relevant
-
-DEFINITION OF RELEVANT:
-The passage contains information that helps answer the query, even partially.
-
-IMPORTANT RULES:
-- Be strict
-- Ignore keyword overlap alone
-- Focus on usefulness for answering the query
-- If unsure, choose 0
-
-OUTPUT FORMAT (STRICT):
-Return ONLY a single integer:
-0 or 1
-
-NO explanation. NO extra text.
-
----
-
-QUERY:
-{{query}}
-
----
-
-PASSAGE:
-{{passage}}
-
-"""
-
-
-GROUP_RELEVANCE_JUDGE_PROMPT_BIN = """
+RELEVANCE_JUDGE_PROMPT = """
 You are evaluating the relevance of a set of passages for answering a user query.
 
 TASK:
@@ -197,32 +76,78 @@ PASSAGES:
 """
 
 
+# QUERY_EXPANDER_PROMPT = """
+# You reformulate research questions to improve retrieval in academic databases. 
+
+# Generate 3 alternative versions of the query that preserve the original meaning and scope. 
+
+# Each reformulation MUST: 
+# - Use different academic terminology or phrasing 
+# - Maintain the same level of specificity (do NOT broaden or narrow the topic) 
+# - Preserve the original intent exactly 
+
+# Ensure diversity across the reformulations: 
+# - One should favor formal academic phrasing 
+# - One should favor common terminology used in literature 
+# - One may vary key terms (e.g., synonyms such as "impact", "relationship", "effect") 
+
+# Do NOT introduce new concepts, sub-questions, or assumptions. 
+# Preserve key domain terms when possible (e.g., "renewable energy", "solar energy"). 
+
+# OUTPUT FORMAT (IMPORTANT): 
+# You MUST return the query reformulations as a list, using this format: 
+# ["expanded_query_1", "expanded_query_2", ...] 
+
+# Original query: 
+# {{QUESTION}}
+# """
+
+# QUERY_EXPANDER_PROMPT = """
+# You reformulate research questions to improve retrieval in academic databases.
+
+# Generate 3 alternative versions of the query that preserve the original meaning and scope.
+
+# Requirements:
+# - Keep each reformulation concise and focused
+# - Preserve the original intent exactly (no added or removed concepts)
+# - Use different wording, phrasing, or structure to increase retrieval diversity
+# - Vary important terms where appropriate (e.g., synonyms), but do NOT distort meaning
+# - Avoid repeating the same phrasing patterns across outputs
+
+# Do NOT:
+# - Introduce new topics, sub-questions, or assumptions
+# - Overly lengthen or complicate the query
+# - Drift away from the original focus
+
+# OUTPUT FORMAT (STRICT):
+# Return a JSON list of strings:
+# ["query1", "query2", "query3"]
+
+# Original query:
+# {{QUESTION}}
+# """
+
 QUERY_EXPANDER_PROMPT = """
 You reformulate research questions to improve retrieval in academic databases.
 
-Generate 3 alternative versions of the query that preserve the original meaning and scope.
+Generate 3 alternative versions of the query.
 
-Each reformulation MUST:
-- Use different academic terminology or phrasing
-- Maintain the same level of specificity (do NOT broaden or narrow the topic)
-- Preserve the original intent exactly
+Requirements:
+- Preserve the core meaning of the original query
+- Do NOT introduce unrelated concepts
+- Slightly vary terminology and phrasing to improve retrieval diversity
+- You may use synonyms or closely related academic expressions
+- Keep queries concise and focused
 
-Ensure diversity across the reformulations:
-- One should favor formal academic phrasing
-- One should favor common terminology used in literature
-- One may vary key terms (e.g., synonyms such as "impact", "relationship", "effect")
+Goal:
+Produce variations that could retrieve complementary relevant evidence.
 
-Do NOT introduce new concepts, sub-questions, or assumptions.
-Preserve key domain terms when possible (e.g., "renewable energy", "solar energy").
-
-OUTPUT FORMAT (IMPORTANT):
-You MUST return the query reformulations as a list, using this format:
-["expanded_query_1", "expanded_query_2", ...]
+OUTPUT FORMAT:
+["query1", "query2", "query3"]
 
 Original query:
 {{QUESTION}}
 """
-
 
 TASK_HEADER = """
 You are an expert research assistant specialized in environmental and social impact analysis.

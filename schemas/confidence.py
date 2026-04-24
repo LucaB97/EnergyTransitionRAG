@@ -1,36 +1,14 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Literal, Union
+from typing import List, Optional, Literal, Union
 
 
 class AxisProfile(BaseModel):
-    level: Literal["Strong", "Moderate", "Weak", "Not_applicable"]
+    level: Optional[str] 
+    # Literal["Strong", "Moderate", "Weak", "Not_applicable"]
     score: Optional[float] = Field(ge=0.0, le=1.0)
     explanation: Optional[
-        Union[
-            str,  # for semantic axis
-            List[str]  # for evidence / grounding
-        ]
+        Union[str, List[str]]
     ] = None
-
-
-# class ConfidenceProfile(BaseModel):
-#     semantic: AxisProfile = Field(
-#         default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
-#         description="Semantic alignment of evidence to query"
-#     )
-#     evidence: AxisProfile = Field(
-#         default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
-#         description="Evidence structure strength"
-#     )
-#     grounding: AxisProfile = Field(
-#         default_factory=lambda: AxisProfile(level="Not_applicable", score=None),
-#         description="Grounding quality of the synthesis"
-#     )
-#     status: Literal["Success", "Not applicable"]
-#     reason: Optional[str] = Field(
-#         default="",
-#         description="Reason for \"Not applicable\" status"
-#     )
 
 class ConfidenceProfile(BaseModel):
     evidence: AxisProfile = Field(

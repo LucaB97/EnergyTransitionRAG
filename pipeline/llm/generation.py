@@ -35,7 +35,7 @@ content:
                               .replace("{{QUESTION}}", question)
 
 
-    def _validate_output(self, raw_output: str):
+    def _validate_output(self, raw_output: str, valid_chunk_ids: set):
         if raw_output.count("{") != raw_output.count("}"):
             raise ValueError("LLM output appears truncated")
 
@@ -50,11 +50,22 @@ content:
         for i, s in enumerate(parsed["answer"]):
             if "text" not in s or "citations" not in s:
                 raise ValueError(f"Malformed answer item at index {i}")
+            
+            if not isinstance(s["citations"], list) or len(s["citations"]) == 0:
+                raise ValueError(f"Empty citations at index {i}")
+            
+            for cid in s["citations"]:
+                if not isinstance(cid, str) or not cid.strip():
+                    raise ValueError(f"Invalid citation at index {i}: {cid!r}")
+                if cid not in valid_chunk_ids:
+                    raise ValueError(f"Citation '{cid}' not found in provided sources")
 
         return parsed
 
 
     def synthesize(self, question, chunks, prompt_template):
+        
+        valid_chunk_ids = set([c["chunk_id"] for c in chunks])
         base_prompt = self.build_prompt(question, chunks, prompt_template)
         last_error = None
 
@@ -74,7 +85,7 @@ content:
             output = clean_llm_output(raw_output)
 
             try:
-                return self._validate_output(output)
+                return self._validate_output(output, valid_chunk_ids)
 
             except Exception as e:
                 last_error = e

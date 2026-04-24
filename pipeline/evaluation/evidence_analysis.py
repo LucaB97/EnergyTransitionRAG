@@ -49,7 +49,6 @@ def aggregate_evidence(relevant_chunks, used_chunk_ids=None):
     }
 
 
-
 def extract_sentence_paper_ids(answer, source_lookup):
     """
     Build sentence → paper_id mapping.
@@ -68,7 +67,6 @@ def extract_sentence_paper_ids(answer, source_lookup):
         sentence_papers.append(papers)
 
     return sentence_papers
-
 
 
 def compute_grounding_metrics(aggregation, sentence_papers):

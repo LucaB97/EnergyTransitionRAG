@@ -170,6 +170,7 @@ if data:
         # ---------------------------------------------------------------------
         # Synthesized answer (inline citations)
         # ---------------------------------------------------------------------
+        st.subheader("Confidence Profile")
         render_confidence_profile(confidence)
         
         citation_style = CitationStyle.NUMERIC

@@ -13,6 +13,7 @@ from services.llm_clients import OpenAIClient, HFClient
 from pipeline.preprocessing.normalization import Normalizer
 from pipeline.retrieval.retriever import SemanticRetriever, BM25Retriever, HybridRetriever
 from pipeline.retrieval.reranker import RelevanceProfiler
+from pipeline.llm.relevance_evaluation import EvidenceRelevanceJudge
 from pipeline.llm.scope_classification import QueryScopeClassifier
 from pipeline.llm.query_expansion import QueryExpander
 from pipeline.llm.generation import ResearchSynthesisEngine
@@ -35,13 +36,9 @@ def load_system(app):
     metadata_path = artifacts["metadata_path"]
     chunks_path = artifacts["chunks_path"]
     index_path = artifacts["index_path"]
-    params_path = artifacts["params_path"]
 
     with open(chunks_path, encoding="utf-8") as f:
         chunks = json.load(f)
-
-    with open(params_path, encoding="utf-8") as f:
-        params = json.load(f)
 
     index = load_faiss(index_path)
 
@@ -54,12 +51,11 @@ def load_system(app):
 
     # ---- LLM selection ----
     if profile == "public":
-        llm = OpenAIClient(model_name=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+        llm_temp0 = OpenAIClient(model_name=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0.0)
+        llm = OpenAIClient(model_name=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0.2)
     elif profile == "gpu":
-        llm = HFClient(
-            model_name=os.getenv("HF_MODEL_GPU", "mistralai/Mistral-7B-Instruct-v0.2"),
-            load_in_4bit=True
-        )
+        llm_temp0 = HFClient(model_name=os.getenv("HF_MODEL_GPU", "mistralai/Mistral-7B-Instruct-v0.2"), load_in_4bit=True, temperature=0.0)
+        llm = HFClient(model_name=os.getenv("HF_MODEL_GPU", "mistralai/Mistral-7B-Instruct-v0.2"), load_in_4bit=True, temperature=0.2)
 
     # ---- Core components ----
     if config.normalize_query_lexical:
@@ -71,9 +67,10 @@ def load_system(app):
         normalizer = None
 
     bm25_retriever = BM25Retriever(chunks, normalizer)
-    scope_classifier = QueryScopeClassifier(llm)
+    scope_classifier = QueryScopeClassifier(llm_temp0)
     retriever = HybridRetriever(semantic_retriever, bm25_retriever)
     relevance_profiler = RelevanceProfiler()
+    evidence_relevance_judge = EvidenceRelevanceJudge(llm_temp0)
     query_expander = QueryExpander(llm)
     synthesizer = ResearchSynthesisEngine(llm, max_attempts=3)
 
@@ -84,8 +81,7 @@ def load_system(app):
         normalizer=normalizer,
         retriever=retriever,
         relevance_profiler=relevance_profiler,
-        topN = config.topN,
-        params=params,
+        evidence_relevance_judge = evidence_relevance_judge,
         query_expander=query_expander,
         synthesizer=synthesizer
     )

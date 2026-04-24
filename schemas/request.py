@@ -5,7 +5,7 @@ class QueryRequest(BaseModel):
     question: str = Field(
         ...,
         description="Natural language research question to be answered using the indexed literature",
-        example="What are the economic impacts of replacing fossil fuels with wind energy?"
+        example="Energy poverty and equity in renewable energy transition"
     )
     topk_faiss: int = Field(
         default=30,

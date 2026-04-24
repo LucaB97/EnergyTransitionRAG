@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 
-from dependencies2 import load_system
+from dependencies import load_system
 from schemas.request import QueryRequest
 from schemas.response import QueryResponse
 
@@ -25,17 +25,17 @@ def health_check(req: Request):
     return {
         "status": "ok",
         "rag_pipeline_loaded": pipeline is not None,
-        "metadata_loaded": hasattr(pipeline, "metadata"),
-        "scope_classifier_loaded": hasattr(pipeline, "scope_classifier"),
-        "retriever_loaded": retriever is not None,
-        "index_loaded": (
-            hasattr(retriever.semantic_retriever, "index")
-            and retriever.semantic_retriever.index is not None
-        ),
-        "index_size": retriever.semantic_retriever.index.ntotal if retriever else None,
-        "relevance_profiler_loaded": hasattr(pipeline, "relevance_profiler"),
-        "query_expander_loaded": hasattr(pipeline, "query_expander"),
-        "synthesizer_loaded": hasattr(pipeline, "synthesizer"),
+        # "metadata_loaded": hasattr(pipeline, "metadata"),
+        # "scope_classifier_loaded": hasattr(pipeline, "scope_classifier"),
+        # "retriever_loaded": retriever is not None,
+        # "index_loaded": (
+        #     hasattr(retriever.semantic_retriever, "index")
+        #     and retriever.semantic_retriever.index is not None
+        # ),
+        # "index_size": retriever.semantic_retriever.index.ntotal if retriever else None,
+        # "relevance_profiler_loaded": hasattr(pipeline, "relevance_profiler"),
+        # "query_expander_loaded": hasattr(pipeline, "query_expander"),
+        # "synthesizer_loaded": hasattr(pipeline, "synthesizer"),
     }
 
 

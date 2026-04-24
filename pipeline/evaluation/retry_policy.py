@@ -1,13 +1,3 @@
-def need_retry_semantic(semantic_alignment_score, evidence_flags):
-    if semantic_alignment_score < 0.5 and not evidence_flags["absent"]:
-        return True
-
-    if evidence_flags["low_density"]:
-        return True
-
-    return False 
-
-
 def reason_retry_grounding(metrics):
     """
     Determine whether post-synthesis regeneration (retry) is warranted
