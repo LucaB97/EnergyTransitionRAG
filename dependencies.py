@@ -58,14 +58,7 @@ def load_system(app):
         llm = HFClient(model_name=os.getenv("HF_MODEL_GPU", "mistralai/Mistral-7B-Instruct-v0.2"), load_in_4bit=True, temperature=0.2)
 
     # ---- Core components ----
-    if config.normalize_query_lexical:
-        if config.lemmatize_query_lexical:
-            normalizer = Normalizer()
-        else:
-            normalizer = Normalizer(use_lemmatization=False)
-    else:
-        normalizer = None
-
+    normalizer = Normalizer(mode=config.normalization_mode)
     bm25_retriever = BM25Retriever(chunks, normalizer)
     scope_classifier = QueryScopeClassifier(llm_temp0)
     retriever = HybridRetriever(semantic_retriever, bm25_retriever)

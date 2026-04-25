@@ -12,6 +12,8 @@ torch>=2.4.1
 transformers>=4.46.3
 
 #faiss>=1.10.0
+fastapi>=0.135.3
+nltk>=3.9.4
 numpy>=1.26.4
 openai>=2.31.0
 pandas>=3.0.2

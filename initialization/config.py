@@ -5,9 +5,7 @@ class InitializationConfig:
         overlap,
         embedding,
         auto_build,
-        normalize_query_lexical,
-        lemmatize_query_lexical
-        
+        normalization_mode        
     ):
         if overlap >= chunk_size:
             raise ValueError("Overlap must be smaller than chunk size.")
@@ -19,8 +17,7 @@ class InitializationConfig:
         self.overlap = overlap
         self.embedding = embedding
         self.auto_build = auto_build
-        self.normalize_query_lexical = normalize_query_lexical
-        self.lemmatize_query_lexical = lemmatize_query_lexical
+        self.normalization_mode = normalization_mode
 
 
 DEFAULT_CONFIG = InitializationConfig(
@@ -28,6 +25,5 @@ DEFAULT_CONFIG = InitializationConfig(
     overlap=100,
     embedding="openai",
     auto_build=True,
-    normalize_query_lexical=True, #recommended to improve system stability for similar queries
-    lemmatize_query_lexical=True
+    normalization_mode=None
 )

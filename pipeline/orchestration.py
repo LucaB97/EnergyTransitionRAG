@@ -43,8 +43,13 @@ class RAGPipeline:
 
         return {
             "total_time_sec": None,
-            "scope": {
-                "decision": "in_scope"
+            "query_classification": {
+                "in_scope": True,
+                "strategy": {
+                    "llm_type": type(self.scope_classifier.llm).__name__,
+                    "model": self.scope_classifier.llm.model_name,
+                    "temperature": self.scope_classifier.llm.temperature,
+                },
             },
             "retrieval": {
                 "retriever_info": {
@@ -62,7 +67,12 @@ class RAGPipeline:
                 },
                 "query_expansion": {
                     "state": None,
-                    "num_queries": None
+                    "num_queries": None,
+                    "strategy": {
+                        "llm_type": type(self.query_expander.llm).__name__,
+                        "model": self.query_expander.llm.model_name,
+                        "temperature": self.query_expander.llm.temperature,
+                    },
                 },
                 "candidate_pool_size": None,
                 "retrieval_time_sec": None,
@@ -124,18 +134,14 @@ class RAGPipeline:
         if not self.scope_classifier.is_in_scope(user_query, SCOPE_CLASSIFIER_PROMPT):
             pipeline_status = "out_of_scope"
             limitations = ["This query is outside the scope of the system"]
-            meta["scope"] = "out_of_scope"
+            meta["query_classification"]["in_scope"] = False
             confidence_profile = evaluate_confidence_profile(pipeline_status, reason="Out of scope")
             return build_query_response(user_query, pipeline_status, limitations, meta=meta, confidence=confidence_profile)
 
         #
         # --- Retrieval ---
         #
-        if self.normalizer:
-            norm_query = self.normalizer.normalize(user_query)
-        else:
-            norm_query = None
-
+        norm_query = self.normalizer.normalize(user_query)
         topk_faiss, topk_bm25 = request.topk_faiss, request.topk_bm25
         query_expansion = False
         evidence_relevance_exp = None
