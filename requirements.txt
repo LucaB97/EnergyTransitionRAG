@@ -1,4 +1,4 @@
-faiss-cpu==1.10.0
+faiss-cpu==1.13.2
 fastapi==0.135.3
 nltk==3.9.4
 numpy==1.26.4
