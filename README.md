@@ -24,7 +24,7 @@ In `initialization/config.py`, the `DEFAULT_CONFIG` object contains the implemen
 # Abstention examples
 | Out-of-scope query | Synthesizer abstention |
 |--------------------|------------------------|
-| ![](img/out-of-scope.jpg) | ![](img/llm_abstention.jpg) |
+| <div style="vertical-align: top;"><img src="img/out-of-scope.jpg" style="width:100%; display:block; margin:0;"></div> | <div style="vertical-align: top;"><img src="img/llm_abstention.jpg" style="width:100%; display:block; margin:0;"></div> |
 
 # Limitations
 
