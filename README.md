@@ -16,15 +16,24 @@ In `initialization/config.py`, the `DEFAULT_CONFIG` object contains the implemen
 
 # RAG Workflow
 <figure align="center">
-<span style="display: inline-block; text-align: center; width: 70%; height: 70%;">
+<span style="display: inline-block; text-align: center; width: 40%; height: 40%;">
 <img src="img/workflow.png"/>
 </span>
 </figure>
 
 # Abstention examples
-| Out-of-scope query | Synthesizer abstention |
-|--------------------|------------------------|
-| <div style="vertical-align: top;"><img src="img/out-of-scope.jpg" style="width:100%; display:block; margin:0;"></div> | <div style="vertical-align: top;"><img src="img/llm_abstention.jpg" style="width:100%; display:block; margin:0;"></div> |
+<div style="display: flex; justify-content: center; gap: 2%;">
+
+  <div style="text-align: center; width: 45%;">
+    <img src="img/out-of-scope.jpg" style="width: 100%;" />
+    <div>Out-of-scope query</div>
+  </div>
+
+  <div style="text-align: center; width: 45%;">
+    <img src="img/llm_abstention.jpg" style="width: 100%;" />
+    <div>Synthesizer abstention</div>
+  </div>
+
+</div>
 
 # Limitations
-

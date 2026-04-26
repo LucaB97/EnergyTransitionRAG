@@ -6,7 +6,7 @@ from schemas.response import QueryResponse
 
 
 app = FastAPI(
-    title="Environmental Research Synthesizer",
+    title="Energy & Society Research Assistant",
     description="Semantic retrieval + evidence-based synthesis from academic literature",
     version="0.1.0"
 )
