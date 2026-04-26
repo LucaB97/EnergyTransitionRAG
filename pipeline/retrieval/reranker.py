@@ -61,5 +61,5 @@ class RelevanceProfiler:
         for rank, (chunk, score) in enumerate(ranked, start=1):
             chunk["final_score"] = float(score)
             chunk["final_rank"] = rank
-            # chunk["strong_hit"] = score >= self.floor
+
         return [c for c, s in ranked]
