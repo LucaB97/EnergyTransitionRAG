@@ -1,8 +1,18 @@
-# Environmental Research Synthesizer 🌿
+# Introduction
 
 This system helps environmental researchers and policymakers answer questions about the social impacts of renewable energy adoption by synthesizing evidence from multiple peer-reviewed research papers. 
 Given a query (e.g., “How are local communities affected by large renewable projects?”), the system retrieves relevant passages from a corpus of open-access climate research, aggregates key findings, and produces a structured synthesis with explicit citations. 
 The goal is to support evidence-based decision-making while minimizing hallucinations and maximizing transparency.
+
+# Workflow
+
+<figure align="center">
+
+<span style="display: inline-block; text-align: center; width: 70%; height: 70%;">
+<img src="img/workflow.png"/>
+</span>
+
+</figure>
 
 ## Getting Started:
 ### Prerequisites
