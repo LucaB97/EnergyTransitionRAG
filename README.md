@@ -22,14 +22,9 @@ In `initialization/config.py`, the `DEFAULT_CONFIG` object contains the implemen
 </figure>
 
 # Abstention examples
-<figure align="center">
-<span style="display: inline-block; text-align: center; width: 45%; margin-right: 0.5%;">
-<img src="img/out-of-scope.jpg" width="45%" /><br />
-<span>Out-of-scope query</span> </span>
-<span style="display: inline-block; text-align: center; width: 45%; margin-right: 0.5%;">
-<img src="img/llm_abstention.jpg" width="45%" /><br />
-<span>Synthesizer abstention</span> </span>
-</figure>
+| Out-of-scope query | Synthesizer abstention |
+|--------------------|------------------------|
+| ![](img/out-of-scope.jpg) | ![](img/llm_abstention.jpg) |
 
 # Limitations
 
