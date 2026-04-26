@@ -126,7 +126,7 @@ def render_confidence_profile(confidence):
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2, gap="large")
-    evidence_caption = "Share of top passages (used for synthesis)<br>judged relevant to the query"
+    evidence_caption = "Number of top passages (used for synthesis)<br>judged relevant to the query"
     grounding_caption ="How well the answer integrates and balances<br>the cited evidence"
 
 
@@ -142,7 +142,7 @@ def render_confidence_profile(confidence):
                 {evidence_caption}
             </div>
             <div class="metric-value">
-                {evidence['score']:.2f}
+                {evidence['score']}
             </div>
             <div class="confidence-level"
                  style="color:{evidence_colors[evidence['level']]}">
@@ -164,7 +164,7 @@ def render_confidence_profile(confidence):
                 {grounding_caption}                                    
             </div>
             <div class="metric-value">
-                {grounding['score']:.2f}
+                {grounding['score']}
                 <span class="tooltip">ⓘ
                     <span class="tooltiptext">{grounding_tooltip}</span>
                 </span>
@@ -176,8 +176,8 @@ def render_confidence_profile(confidence):
         </div>
         """, unsafe_allow_html=True)
 
-    if evidence['score'] < 0.3:
-        st.warning("⚠️ Very limited relevant evidence found — the answer may be incomplete")
+    # if evidence['score'] < :
+    #     st.warning("⚠️ Very limited relevant evidence found — the answer may be incomplete")
         
 
 ### Citations
@@ -212,11 +212,12 @@ def show_limitations(data, case=None):
     
     elif case == "scope":
         for lim in limitations:
-            st.warning(lim)
-
-    elif case == "absent_evidence":
-        for lim in limitations:
             st.info(lim)
+            # st.warning(lim)
+
+    # elif case == "absent_evidence":
+    #     for lim in limitations:
+    #         st.info(lim)
     
     elif case == "abstention":
         st.info("The system abstained from answering because the available evidence was insufficient to support a reliable synthesis.")
@@ -284,7 +285,7 @@ def show_grounding_metrics(metrics):
         with col2:
             st.metric("Available papers", metrics.get('available_papers', 0))
             st.metric("Used papers", metrics.get('used_papers', 0))
-            st.metric("Paper dominance", metrics.get('paper_dominance', 0))
+            st.metric("Paper dominance", f"{metrics.get('paper_dominance', 0):.0%}")
 
         with col3:
             st.metric(

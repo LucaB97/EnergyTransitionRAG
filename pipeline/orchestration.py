@@ -2,6 +2,7 @@ import pandas as pd
 import time
 import logging
 import json
+from collections import defaultdict
 
 from utils.prompt import SCOPE_CLASSIFIER_PROMPT, RELEVANCE_JUDGE_PROMPT, QUERY_EXPANDER_PROMPT, TASK_HEADER, CORE_SYNTHESIS_INSTRUCTIONS, RETRY_PROMPTS
 from utils.citations import build_citation_index, build_sources, CitationStyle, FORMATTERS, resolve_answer_citations, remove_citations_inside_text 
@@ -51,71 +52,11 @@ class RAGPipeline:
                     "temperature": self.scope_classifier.llm.temperature,
                 },
             },
-            "retrieval": {
-                "retriever_info": {
-                    "strategy": "hybrid",
-                    "semantic": {
-                        "embedding_backend": type(self.retriever.semantic_retriever.embedding_fn).__name__,
-                        "embedding_model": getattr(self.retriever.semantic_retriever.embedding_fn, "model_name", None),
-                        "faiss_index_type": type(self.retriever.semantic_retriever.index).__name__,
-                        "chunks_requested": None,
-                    },
-                    "bm25": {
-                        "enabled": hasattr(self.retriever, "bm25_retriever"),
-                        "chunks_requested": None,
-                    }
-                },
-                "query_expansion": {
-                    "state": None,
-                    "num_queries": None,
-                    "strategy": {
-                        "llm_type": type(self.query_expander.llm).__name__,
-                        "model": self.query_expander.llm.model_name,
-                        "temperature": self.query_expander.llm.temperature,
-                    },
-                },
-                "candidate_pool_size": None,
-                "retrieval_time_sec": None,
-            },
-            "profiling": {
-                "model": self.relevance_profiler.model_name,
-                "profiling_time_sec": None,
-            },
-            "evidence_relevance": {
-                "evaluation_info": {
-                    "llm_type": type(self.evidence_relevance_judge.llm).__name__,
-                    "model": self.evidence_relevance_judge.llm.model_name,
-                    "temperature": self.evidence_relevance_judge.llm.temperature,
-                },
-                "evaluation_time_sec": None,
-            },
-            "errors": {
-                "evidence_evaluation_error": {
-                    "state": None,
-                    "total_attempts": None,
-                    "last_error": None
-                },
-                "generation_error": {
-                    "state": None,
-                    "total_attempts": None,
-                    "last_error": None
-                },
-            },
-            "synthesis": {
-                "synthesizer_info": {
-                    "llm_type": type(self.synthesizer.llm).__name__,
-                    "model": self.synthesizer.llm.model_name,
-                    "max_tokens": self.synthesizer.llm.max_tokens,
-                    "temperature": self.synthesizer.llm.temperature,
-                },
-                "synthesis_retry": {
-                    "attempted": None,
-                    "total_attempts": None,
-                    "retry_triggers": None
-                },
-                "chunks_selected": None,
-                "synthesis_time_sec": None,
-            }
+            "retrieval": {},
+            "profiling": {},
+            "evidence_relevance": {},
+            "errors": {},
+            "synthesis": {}
         }
     
 
@@ -124,16 +65,20 @@ class RAGPipeline:
         start_time = time.perf_counter()
         
         meta = self.initialize_output_meta()
-        
         pipeline_status = "success"
+
+        user_query = request.question
+        
         #
         # --- Zero-shot classification of scope---
         #
-        user_query = request.question
-
-        if not self.scope_classifier.is_in_scope(user_query, SCOPE_CLASSIFIER_PROMPT):
+        in_scope = self.scope_classifier.is_in_scope(user_query, SCOPE_CLASSIFIER_PROMPT)
+        
+        if not in_scope:
+            total_time = time.perf_counter() - start_time
             pipeline_status = "out_of_scope"
             limitations = ["This query is outside the scope of the system"]
+            meta["total_time_sec"] = total_time
             meta["query_classification"]["in_scope"] = False
             confidence_profile = evaluate_confidence_profile(pipeline_status, reason="Out of scope")
             return build_query_response(user_query, pipeline_status, limitations, meta=meta, confidence=confidence_profile)
@@ -144,19 +89,35 @@ class RAGPipeline:
         norm_query = self.normalizer.normalize(user_query)
         topk_faiss, topk_bm25 = request.topk_faiss, request.topk_bm25
         query_expansion = False
-        evidence_relevance_exp = None
+        relevant_count_exp = None
         queries = [user_query]
 
         t0 = time.perf_counter()
         retrieved_chunks = self.retriever.search(user_query, norm_query, topk_faiss=topk_faiss, topk_bm25=topk_bm25)
         retrieval_time = time.perf_counter() - t0
-        
-        meta["retrieval"]["retriever_info"]["semantic"]["chunks_requested"] = topk_faiss
-        meta["retrieval"]["retriever_info"]["bm25"]["chunks_requested"] = topk_bm25
-        meta["retrieval"]["candidate_pool_size"] = len(retrieved_chunks)
-        meta["retrieval"]["query_expansion"]["state"] = query_expansion
-        meta["retrieval"]["query_expansion"]["num_queries"] = 1
-        meta["retrieval"]["retrieval_time_sec"] = round(retrieval_time, 3)
+
+        meta["retrieval"] = {
+            "candidate_pool_size": len(retrieved_chunks),
+            "retrieval_time_sec": round(retrieval_time, 3),
+            "retriever_info": {
+                "strategy": "hybrid",
+                "semantic": {
+                    "embedding_backend": type(self.retriever.semantic_retriever.embedding_fn).__name__,
+                    "embedding_model": getattr(self.retriever.semantic_retriever.embedding_fn, "model_name", None),
+                    "faiss_index_type": type(self.retriever.semantic_retriever.index).__name__,
+                    "chunks_requested": topk_faiss,
+                },
+                "bm25": {
+                    "enabled": hasattr(self.retriever, "bm25_retriever"),
+                    "chunks_requested": topk_bm25,
+                }
+            },
+            "query_expansion": {
+                "state": False,
+                "num_queries": 1,
+                "strategy": {},
+            },  
+        }
         
         if not retrieved_chunks:
             pipeline_status = "retrieval_failed"
@@ -173,8 +134,11 @@ class RAGPipeline:
         t1 = time.perf_counter()
         reranked_chunks = self.relevance_profiler.rerank(user_query, retrieved_chunks)
         profiling_time = time.perf_counter() - t1
-        meta["profiling"]["profiling_time_sec"] = round(profiling_time, 3)
-        
+
+        meta["profiling"] = {
+            "model": self.relevance_profiler.model_name,
+            "profiling_time_sec": round(profiling_time, 3),
+        }
 
         top_chunks = reranked_chunks[:self.topN]
         texts = [chunk["text"] for chunk in top_chunks]
@@ -182,16 +146,30 @@ class RAGPipeline:
         try:
             t2 = time.perf_counter()
             relevance_scores = self.evidence_relevance_judge.judge_relevance_unified(user_query, texts, RELEVANCE_JUDGE_PROMPT)
-            evidence_relevance = sum(relevance_scores) / (len(relevance_scores))
+            relevant_count = sum(relevance_scores)
             relevance_evaluation_time = time.perf_counter() - t2
-            meta["evidence_relevance"]["evaluation_time_sec"] = round(relevance_evaluation_time, 3)
-            print(f"Evidence coverage: {evidence_relevance}")
+            
+            meta["evidence_relevance"] = {
+                "evaluation_time_sec": round(relevance_evaluation_time, 3),
+                "evaluation_info": {
+                    "llm_type": type(self.evidence_relevance_judge.llm).__name__,
+                    "model": self.evidence_relevance_judge.llm.model_name,
+                    "temperature": self.evidence_relevance_judge.llm.temperature,
+                },
+            }
+
         except ValueError as e:
             pipeline_status = "relevance_evaluation_error"
             limitations=["An error occurred during the evaluation of the evidence. Please try again."]
-            meta["errors"]["relevance_evaluation_error"]["state"] = True
-            meta["errors"]["relevance_evaluation_error"]["total_attempts"] = self.synthesizer.max_attempts
-            meta["errors"]["relevance_evaluation_error"]["last_error"] = str(e)
+            
+            meta["errors"] = {	
+                "evidence_evaluation_error": {
+                    "state": True,
+                    "total_attempts": self.synthesizer.max_attempts,
+                    "last_error": str(e)
+                }
+            }
+
             confidence_profile = evaluate_confidence_profile(pipeline_status, reason="Evidence evaluation error")
             trace = {
                 "queries": queries
@@ -203,7 +181,7 @@ class RAGPipeline:
         # --- Retrieval retry ---
         #
 
-        if evidence_relevance < 0.6:
+        if relevant_count < 8:
             
             if not query_expansion:
 
@@ -230,9 +208,15 @@ class RAGPipeline:
                 retrieved_chunks = deduplicate(retrieved_chunks)
 
                 meta["retrieval"]["candidate_pool_size"] = len(retrieved_chunks)
+                meta["retrieval"]["retrieval_time_sec"] = round(retrieval_time, 3)
+
                 meta["retrieval"]["query_expansion"]["state"] = query_expansion
                 meta["retrieval"]["query_expansion"]["num_queries"] = len(queries)
-                meta["retrieval"]["retrieval_time_sec"] = round(retrieval_time, 3)
+                meta["retrieval"]["query_expansion"]["strategy"] = {
+                    "llm_type": type(self.query_expander.llm).__name__,
+                    "model": self.query_expander.llm.model_name, 
+                    "temperature": self.query_expander.llm.temperature,
+                }
 
                 if not retrieved_chunks:
                     pipeline_status = "retrieval_failed"
@@ -252,16 +236,19 @@ class RAGPipeline:
                 try:
                     t2 = time.perf_counter()
                     relevance_scores_exp = self.evidence_relevance_judge.judge_relevance_unified(user_query, texts, RELEVANCE_JUDGE_PROMPT)
-                    evidence_relevance_exp = sum(relevance_scores_exp) / (len(relevance_scores_exp))
+                    relevant_count_exp = sum(relevance_scores_exp)
                     relevance_evaluation_time += time.perf_counter() - t2
                     meta["evidence_relevance"]["evaluation_time_sec"] = round(relevance_evaluation_time, 3)
-                    print(f"Evidence coverage after expansion: {evidence_relevance_exp}")
                 except ValueError as e:
                     pipeline_status = "relevance_evaluation_error"
                     limitations=["An error occurred during the evaluation of the evidence. Please try again."]
-                    meta["errors"]["relevance_evaluation_error"]["state"] = True
-                    meta["errors"]["relevance_evaluation_error"]["total_attempts"] = self.synthesizer.max_attempts
-                    meta["errors"]["relevance_evaluation_error"]["last_error"] = str(e)
+                    meta["errors"] = {	
+                        "evidence_evaluation_error": {
+                            "state": True,
+                            "total_attempts": self.synthesizer.max_attempts,
+                            "last_error": str(e)
+                        }
+                    }
                     confidence_profile = evaluate_confidence_profile(pipeline_status, reason="Evidence evaluation error")
                     return build_query_response(user_query, pipeline_status, limitations, meta=meta, confidence=confidence_profile) 
  
@@ -269,10 +256,25 @@ class RAGPipeline:
         #
         # --- Synthesis ---
         #    
-        meta["synthesis"]["chunks_selected"] = self.topN
-        if evidence_relevance_exp:
-            if evidence_relevance_exp > evidence_relevance:
-                evidence_relevance = evidence_relevance_exp
+        meta["synthesis"] = {
+            "chunks_selected": self.topN,
+            "synthesis_time_sec": None,
+            "synthesizer_info": {
+                "llm_type": type(self.synthesizer.llm).__name__,
+                "model": self.synthesizer.llm.model_name,
+                "max_tokens": self.synthesizer.llm.max_tokens,
+                "temperature": self.synthesizer.llm.temperature,
+            },
+            "synthesis_retry": {
+                "attempted": None,
+                "total_attempts": None,
+                "retry_triggers": None
+            },
+        }
+        
+        if relevant_count_exp:
+            if relevant_count_exp > relevant_count:
+                relevant_count = relevant_count_exp
                 top_chunks = top_chunks_exp
             
         for c in top_chunks:
@@ -312,7 +314,7 @@ class RAGPipeline:
 
 
             answer = synthesis_output["answer"]
-            
+
             if not answer:
                 synthesis_time = time.perf_counter() - t3
                 total_time = time.perf_counter() - start_time
@@ -323,7 +325,7 @@ class RAGPipeline:
                 meta["total_time_sec"] = round(total_time, 3)
                 
                 aggregation = aggregate_evidence(top_chunks)
-                confidence_profile = evaluate_confidence_profile(pipeline_status, evidence_relevance, reason="Abstention")
+                confidence_profile = evaluate_confidence_profile(pipeline_status, relevant_count, len(top_chunks), reason="Abstention")
                 
                 trace={
                 "queries": queries,
@@ -346,11 +348,7 @@ class RAGPipeline:
 
             grounding_score, grounding_flags = evaluate_grounding_quality(grounding_metrics)
             
-            print(f"Attempt {attempt}, grounding score: {grounding_score}")
-            for _, s in enumerate(synthesis_output["answer"]):
-                print(s["citations"])
-            
-            confidence_profile = evaluate_confidence_profile(pipeline_status, evidence_relevance, grounding_score, grounding_metrics, grounding_flags)
+            confidence_profile = evaluate_confidence_profile(pipeline_status, relevant_count, len(top_chunks), grounding_score, grounding_metrics, grounding_flags)
             
             if grounding_score >= best_score:
                 best_output = synthesis_output
@@ -386,18 +384,25 @@ class RAGPipeline:
         if last_error and not best_output:
             pipeline_status = "generation_error"
             limitations=["The system was unable to generate a reliable answer this time. Please try again."]
-            meta["errors"]["generation_error"]["state"] = True
-            meta["errors"]["generation_error"]["total_attempts"] = self.synthesizer.max_attempts
-            meta["errors"]["generation_error"]["last_error"] = str(last_error)
+            
+            meta["errors"] = {	
+                "generation_error": {
+                    "state": True,
+                    "total_attempts": self.synthesizer.max_attempts,
+                    "last_error": str(last_error)
+                },
+            }
+
             confidence_profile = evaluate_confidence_profile(pipeline_status, reason="Generation error")
             return build_query_response(user_query, pipeline_status, limitations, meta=meta, confidence=confidence_profile)  
 
         #
         # --- Output preparation ---
         #
-        meta["synthesis"]["synthesis_retry"]["attempted"] = attempt>1
-        meta["synthesis"]["synthesis_retry"]["total_attempts"] = attempt
-        meta["synthesis"]["synthesis_retry"]["retry_triggers"] = retry_triggers
+        if attempt>1:
+            meta["synthesis"]["synthesis_retry"]["attempted"] = attempt>1
+            meta["synthesis"]["synthesis_retry"]["total_attempts"] = attempt
+            meta["synthesis"]["synthesis_retry"]["retry_triggers"] = retry_triggers
 
         citation_index = build_citation_index(best_sentence_papers)
         sources = build_sources(citation_index, source_lookup)
@@ -415,10 +420,6 @@ class RAGPipeline:
                 for pid, stats in best_aggregation["paper_stats"].items()
             ]
         }
-
-        print(f"Best output:")
-        for _, s in enumerate(best_output["answer"]):
-            print(s["citations"])
 
         return build_query_response(user_query, pipeline_status, limitations=best_output["limitations"], answer=[Sentence(**s) for s in resolved_answer], 
                             sources=sources, meta=meta, confidence=best_confidence, trace=trace)

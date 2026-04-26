@@ -1,6 +1,3 @@
-import numpy as np
-
-
 def evaluate_grounding_quality(metrics):
     """
     Evaluate the grounding quality of a generated answer.
@@ -75,8 +72,8 @@ def explain_grounding(metrics, flags):
     if flags.get("no_citations"):
         return "The answer does not cite any sources"
     
-    
-    source_usage_bullet = f"Source usage — {metrics['used_papers']} papers\n"
+    papers_txt = "papers" if metrics['used_papers'] > 1 else "paper"
+    source_usage_bullet = f"Source usage — {metrics['used_papers']} {papers_txt}\n"
     
     if flags.get("multi_source_grounding"):
         source_usage_bullet += "The synthesis uses evidence from multiple independent sources"
@@ -86,7 +83,7 @@ def explain_grounding(metrics, flags):
         source_usage_bullet += "The synthesis relies on a limited number of sources"
 
 
-    paper_dominance_bullet = f"Source dominance — {metrics['paper_dominance']:.2f}\n"
+    paper_dominance_bullet = f"Source dominance — {round(metrics['paper_dominance'],2):.0%}\n"
 
     if flags.get("single_source_reliance"):
         paper_dominance_bullet += "All of the used evidence comes from a single source"
@@ -98,7 +95,7 @@ def explain_grounding(metrics, flags):
         paper_dominance_bullet += "Citations are fairly distributed across different sources"
 
 
-    corroboration_bullet = f"Cross-source support — {metrics['multi_source_sentence_ratio']:.2f}\n"
+    corroboration_bullet = f"Cross-source support — {metrics['multi_source_sentence_ratio']:.0%}\n"
     if flags.get("no_corroboration"):
         corroboration_bullet += "Claims are not corroborated across multiple sources"
     elif flags.get("low_corroboration"):
@@ -111,7 +108,7 @@ def explain_grounding(metrics, flags):
 
 
 def evaluate_confidence_profile(pipeline_status, 
-                                evidence_score=None,
+                                relevant_evidence_count=None, total_evidence=None,
                                 grounding_score=None, grounding_metrics=None, grounding_flags=None,
                                 reason=None):
     """
@@ -119,23 +116,23 @@ def evaluate_confidence_profile(pipeline_status,
     Each axis gets a score (0-1), a level (Weak/Moderate/Strong), and optional explanations.
     """
 
-    if pipeline_status != "success" or evidence_score is None or grounding_score is None:
+    if pipeline_status != "success" or relevant_evidence_count is None or grounding_score is None:
         return {
             "status": "Not applicable",
             "reason": reason
         }
 
     # --- Evidence relevance ---
-    if evidence_score >= 0.6:
+    if relevant_evidence_count >= 8:
         evidence_level = "Good"
-    elif evidence_score >= 0.3:
+    elif relevant_evidence_count >= 5:
         evidence_level = "Limited"
     else:
         evidence_level = "Low"
 
     evidence_relevance = {
         "level": evidence_level,
-        "score": evidence_score,
+        "score": f"{relevant_evidence_count}/{total_evidence}",
     }
 
     # --- Grounding quality ---
@@ -148,7 +145,7 @@ def evaluate_confidence_profile(pipeline_status,
 
     grounding_quality = {
         "level": grounding_level,
-        "score": grounding_score,
+        "score": f"{grounding_score:.0%}",
         "explanation": explain_grounding(grounding_metrics, grounding_flags) if grounding_flags else []
     }
 

@@ -5,7 +5,8 @@ from typing import List, Optional, Literal, Union
 class AxisProfile(BaseModel):
     level: Optional[str] 
     # Literal["Strong", "Moderate", "Weak", "Not_applicable"]
-    score: Optional[float] = Field(ge=0.0, le=1.0)
+    score: Optional[Union[str, float]]
+    # score: Optional[float] = Field(ge=0.0, le=1.0)
     explanation: Optional[
         Union[str, List[str]]
     ] = None
