@@ -50,7 +50,7 @@ def load_system(app):
 
     semantic_retriever = SemanticRetriever(index, chunks, embedding_fn)
 
-    if config.reranker == "cross_encoding":
+    if config.reranking == "cross_encoding":
         reranker = CrossEncoderReranker()
     else:
         reranker = FlashRankReranker()
