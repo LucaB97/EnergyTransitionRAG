@@ -8,6 +8,7 @@ from initialization.pipeline import initialize_system
 
 from services.embeddings import OpenAIEmbedding, HFEmbedding
 from services.indexing import load_faiss
+from services.indexing import FlashRankReranker, CrossEncoderReranker
 from services.llm_clients import OpenAIClient, HFClient
 
 from pipeline.preprocessing.normalization import Normalizer
@@ -49,6 +50,11 @@ def load_system(app):
 
     semantic_retriever = SemanticRetriever(index, chunks, embedding_fn)
 
+    if config.reranker == "cross_encoding":
+        reranker = CrossEncoderReranker()
+    else:
+        reranker = FlashRankReranker()
+        
     # ---- LLM selection ----
     if profile == "public":
         llm_temp0 = OpenAIClient(model_name=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0.0)
@@ -62,7 +68,7 @@ def load_system(app):
     bm25_retriever = BM25Retriever(chunks, normalizer)
     scope_classifier = QueryScopeClassifier(llm_temp0)
     retriever = HybridRetriever(semantic_retriever, bm25_retriever)
-    relevance_profiler = RelevanceProfiler()
+    relevance_profiler = RelevanceProfiler(reranker)
     evidence_relevance_judge = EvidenceRelevanceJudge(llm_temp0)
     query_expander = QueryExpander(llm)
     synthesizer = ResearchSynthesisEngine(llm, max_attempts=3)
