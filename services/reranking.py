@@ -1,6 +1,6 @@
 import numpy as np
 
-class FlashRankReranker(BaseReranker):
+class FlashRankReranker():
     def __init__(self, model_name="ms-marco-TinyBERT-L-2-v2", floor=0.0):
         from flashrank import Ranker, RerankRequest
       
@@ -26,7 +26,7 @@ class FlashRankReranker(BaseReranker):
         return ranked
 
 
-class CrossEncoderReranker(BaseReranker):
+class CrossEncoderReranker():
     def __init__(self, model_name="cross-encoder/ms-marco-MiniLM-L-6-v2", floor=0.25):
         import torch
         from sentence_transformers import CrossEncoder
