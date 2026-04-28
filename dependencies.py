@@ -8,7 +8,7 @@ from initialization.pipeline import initialize_system
 
 from services.embeddings import OpenAIEmbedding, HFEmbedding
 from services.indexing import load_faiss
-from services.indexing import FlashRankReranker, CrossEncoderReranker
+from services.reranking import FlashRankReranker, CrossEncoderReranker
 from services.llm_clients import OpenAIClient, HFClient
 
 from pipeline.preprocessing.normalization import Normalizer
