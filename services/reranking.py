@@ -13,7 +13,8 @@ class FlashRankReranker():
             return []
 
         passages = [{"text": c["text"], "meta": i} for i, c in enumerate(chunks)]
-        results = self.ranker.rerank(query, passages)
+        request = RerankRequest(query=query, passages=passages)
+        results = self.ranker.rerank(request)
 
         ranked = []
         for rank, r in enumerate(results, start=1):
