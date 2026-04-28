@@ -4,8 +4,9 @@ class InitializationConfig:
         chunk_size,
         overlap,
         embedding,
-        auto_build,
-        normalization_mode        
+        normalization_mode,
+        reranking,
+        auto_build
     ):
         if overlap >= chunk_size:
             raise ValueError("Overlap must be smaller than chunk size.")
@@ -13,17 +14,22 @@ class InitializationConfig:
         if embedding not in ["hf", "openai"]:
             raise ValueError("Embedding must be 'hf' or 'openai'")
 
+        if reranking not in ["flashrank", "cross_encoding"]:
+            raise ValueError("Reranking must be 'flashrank' or 'cross_encoding'")
+            
         self.chunk_size = chunk_size
         self.overlap = overlap
         self.embedding = embedding
-        self.auto_build = auto_build
         self.normalization_mode = normalization_mode
+        self.reranking = reranking
+        self.auto_build = auto_build
 
 
 DEFAULT_CONFIG = InitializationConfig(
     chunk_size=500,
     overlap=100,
     embedding="openai",
-    auto_build=True,
-    normalization_mode=None
+    normalization_mode=None,
+    reranking="flashrank",
+    auto_build=False
 )
