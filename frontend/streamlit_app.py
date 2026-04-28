@@ -1,3 +1,7 @@
+import sys
+import pathlib as Path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 import streamlit as st
 import requests
 
@@ -8,7 +12,7 @@ from utils.export import export_output
 # Page config
 # ---------------------------------------------------------------------
 st.set_page_config(
-    page_title="Environmental Research Synthesizer",
+    page_title="Energy & Society Research Assistant",
     layout="centered"
 )
 
