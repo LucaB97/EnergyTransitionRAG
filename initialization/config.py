@@ -14,6 +14,9 @@ class InitializationConfig:
         if embedding not in ["hf", "openai"]:
             raise ValueError("Embedding must be 'hf' or 'openai'")
 
+        if normalization_mode is not None and normalization_mode not in ["stemming", "lemmatization"]:
+            raise ValueError("Embedding must be 'stemming' or 'lemmatization'")
+ 
         if reranking not in ["flashrank", "cross_encoding"]:
             raise ValueError("Reranking must be 'flashrank' or 'cross_encoding'")
             
@@ -29,7 +32,7 @@ DEFAULT_CONFIG = InitializationConfig(
     chunk_size=500,
     overlap=100,
     embedding="openai",
-    normalization_mode=None,
+    normalization_mode="stemming",
     reranking="flashrank",
     auto_build=False
 )
