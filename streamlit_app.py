@@ -15,11 +15,13 @@ st.set_page_config(
 # ---------------------------------------------------------------------
 # Backend health check
 # ---------------------------------------------------------------------
-API_URL = "http://localhost:8000/query"
-HEALTH_URL = "http://localhost:8000/health"
+#API_URL = "http://localhost:8000/query"
+API_URL = "https://energytransitionrag.onrender.com/query"
+#HEALTH_URL = "http://localhost:8000/health"
+HEALTH_URL "https://energytransitionrag.onrender.com/health"
 
 try:
-    requests.get(HEALTH_URL, timeout=2)
+    requests.get(HEALTH_URL, timeout=5)
 except:
     st.error("🚫 Backend is not reachable. ")
     st.stop()
