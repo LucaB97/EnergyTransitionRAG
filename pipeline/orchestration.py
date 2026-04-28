@@ -137,7 +137,7 @@ class RAGPipeline:
 
         meta["profiling"] = {
             "class": self.relevance_profiler.reranker,
-            "model": self.relevance_profiler.reranker.rerank.model_name,
+            "model": self.relevance_profiler.reranker.ranker.model_name,
             "profiling_time_sec": round(profiling_time, 3),
         }
 
