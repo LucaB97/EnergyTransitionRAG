@@ -1,8 +1,9 @@
 import numpy as np
+from flashrank import Ranker, RerankRequest
 
 class FlashRankReranker():
     def __init__(self, model_name="ms-marco-TinyBERT-L-2-v2", floor=0.0):
-        from flashrank import Ranker, RerankRequest
+        #from flashrank import Ranker, RerankRequest
       
         self.ranker = Ranker(model_name=model_name)
         self.floor = floor
