@@ -1,3 +1,5 @@
+Demo freely available at: https://energytransitionrag.streamlit.app/
+
 # Introduction
 This system helps environmental researchers and policymakers answer questions about the social impacts of renewable energy adoption by synthesizing evidence from multiple peer-reviewed research papers.<br>
 Given a query, the system retrieves relevant passages from a corpus of open-access climate research, aggregates key findings, and produces a structured synthesis with explicit citations.<br>
@@ -35,5 +37,3 @@ In `initialization/config.py`, the `DEFAULT_CONFIG` object contains the implemen
   </div>
 
 </div>
-
-# Limitations
