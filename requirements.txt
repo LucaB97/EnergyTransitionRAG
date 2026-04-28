@@ -10,10 +10,10 @@ python-dotenv
 rank_bm25
 requests
 scipy==1.11.4
-sentence-transformers
+#sentence-transformers
 #spacy==3.7.4
 #streamlit
-torch==2.2.2
+#torch==2.2.2
 transformers==4.38.2
 uvicorn
 faiss-cpu==1.7.4
