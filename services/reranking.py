@@ -4,7 +4,8 @@ from flashrank import Ranker, RerankRequest
 class FlashRankReranker():
     def __init__(self, model_name="ms-marco-TinyBERT-L-2-v2", floor=0.0):
         #from flashrank import Ranker, RerankRequest
-      
+        
+        self.model_name = model_name
         self.ranker = Ranker(model_name=model_name)
         self.floor = floor
 
@@ -31,6 +32,7 @@ class CrossEncoderReranker():
         import torch
         from sentence_transformers import CrossEncoder
 
+        self.model_name = model_name
         device = "cuda" if torch.cuda.is_available() else "cpu"
         self.encoder = CrossEncoder(model_name, device=device)
         self.floor = floor
