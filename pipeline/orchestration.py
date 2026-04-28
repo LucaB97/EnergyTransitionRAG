@@ -136,7 +136,8 @@ class RAGPipeline:
         profiling_time = time.perf_counter() - t1
 
         meta["profiling"] = {
-            "model": self.relevance_profiler.reranker.model_name,
+            "class": self.relevance_profiler.reranker,
+            "model": self.relevance_profiler.reranker.rerank.model_name,
             "profiling_time_sec": round(profiling_time, 3),
         }
 
