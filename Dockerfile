@@ -16,9 +16,14 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # 🚀 Install Python deps
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+ARG INSTALL_FULL=false
 
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    if [ "$INSTALL_FULL" = "true" ]; then \
+        pip install --no-cache-dir -r requirements_full.txt ; \
+    fi
+    
 # 📁 Copy app
 COPY . .
 
