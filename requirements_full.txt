@@ -1,0 +1,3 @@
+sentence-transformers
+spacy==3.7.4
+torch==2.2.2
