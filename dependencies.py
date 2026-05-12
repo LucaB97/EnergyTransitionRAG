@@ -45,7 +45,7 @@ def load_system(app):
 
     if config.embedding == "hf":
         embedding_fn = HFEmbedding()
-    else:
+    elif config.embedding == "openai":
         embedding_fn = OpenAIEmbedding()
 
     semantic_retriever = SemanticRetriever(index, chunks, embedding_fn)

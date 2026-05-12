@@ -2,7 +2,6 @@ import pandas as pd
 import time
 import logging
 import json
-from collections import defaultdict
 
 from utils.prompt import SCOPE_CLASSIFIER_PROMPT, RELEVANCE_JUDGE_PROMPT, QUERY_EXPANDER_PROMPT, TASK_HEADER, CORE_SYNTHESIS_INSTRUCTIONS, RETRY_PROMPTS
 from utils.citations import build_citation_index, build_sources, CitationStyle, FORMATTERS, resolve_answer_citations, remove_citations_inside_text 
